@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:orientation="vertical"
+	android:layout_width="fill_parent" 
+	android:layout_height="fill_parent"
+	android:padding="20dp">
+	<TextView 
+		android:text="@string/register_message" 
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content" />
+	<EditText 
+		android:id="@+id/licenseKeyNo" 
+		android:inputType="text"
+		android:layout_width="fill_parent"
+		android:layout_height="40dip" 
+		android:layout_marginRight="10dp" />
+	<LinearLayout 
+		xmlns:android="http://schemas.android.com/apk/res/android"
+		android:orientation="horizontal"
+		android:layout_width="fill_parent" 
+		android:layout_height="fill_parent" >
+		<Button
+			android:id="@+id/okButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center_vertical|center_horizontal"
+			android:layout_weight="2"
+			android:text="@string/ok"/>
+		<Button
+			android:id="@+id/cancelButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center_vertical|center_horizontal"
+			android:layout_weight="1" 
+			android:layout_marginRight="10dp"
+			android:text="@string/cancel"/>
+	</LinearLayout>
+</LinearLayout>

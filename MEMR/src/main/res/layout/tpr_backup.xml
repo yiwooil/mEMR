@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 갤럭시 탭 7인치 용으로 개발된 소스임 -->
+<!-- 갤럭시 탭 10.1인치 용으로 수정하므로 소스를 변경하여야하는데 -->
+<!-- 만일을 위하여 기존 소스를 백업하여둠. -->
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    >
+    <FrameLayout
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        >
+        <TextView
+            android:id="@+id/patientInfoTextView"
+            style="@style/PatientInfo"
+            />
+        <LinearLayout
+            xmlns:android="http://schemas.android.com/apk/res/android"
+            android:orientation="horizontal"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:gravity="right"
+            >
+            <RadioGroup 
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" 
+                android:id="@+id/kind"
+                android:orientation="horizontal"
+                android:checkedButton="@+id/temp"
+                android:visibility="gone"
+                >
+                <RadioButton 
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" 
+                    android:id="@+id/temp"
+                    android:text="@string/temp" />
+                <RadioButton 
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" 
+                    android:id="@+id/bp"
+                    android:text="@string/bp" />
+            </RadioGroup>
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

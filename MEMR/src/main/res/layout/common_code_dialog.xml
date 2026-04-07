@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent" 
+    android:layout_height="fill_parent"
+    android:background="@color/background"
+    >
+    <!-- ListView 위에 추가 -->
+    <!-- 진료과 콤보 -->
+    <Spinner
+        android:id="@+id/sp_doctor_dept"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"/>
+
+    <!-- listview 밑에 버튼이 항상보이도록 하기위하여는 -->
+    <!-- listview 에만 layout_weight를 "1"로 만들어야 한다. -->
+    <ListView
+        android:id="@+id/common_code_list"  
+        android:layout_width="fill_parent" 
+        android:layout_height="fill_parent"
+        android:cacheColorHint="@color/background"
+        android:layout_marginLeft="10dip"
+        android:layout_marginRight="10dip"
+        android:layout_weight="1"
+        />
+    <LinearLayout 
+        android:orientation="horizontal"
+        android:layout_width="fill_parent" 
+        android:layout_height="fill_parent"
+        >
+        <Button
+            android:id="@+id/okButton"
+            android:layout_width="wrap_content"
+            android:layout_height="50dip"
+            android:layout_gravity="center_vertical|center_horizontal"
+            android:layout_weight="1"
+            android:layout_marginLeft="10dip"
+            android:text="@string/ok"
+            android:textSize="@dimen/normal_text_size"
+            android:background="@drawable/selector_button_background"
+            />
+        <Button
+            android:id="@+id/cancelButton"
+            android:layout_width="wrap_content"
+            android:layout_height="50dip"
+            android:layout_gravity="center_vertical|center_horizontal"
+            android:layout_weight="1" 
+            android:layout_marginRight="10dip"
+            android:text="@string/cancel"
+            android:textSize="@dimen/normal_text_size"
+            android:background="@drawable/selector_button_background"
+            />
+    </LinearLayout>
+</LinearLayout>

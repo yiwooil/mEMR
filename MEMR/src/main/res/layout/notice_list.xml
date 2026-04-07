@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    >
+    <!-- 구분선 -->
+<!--     <LinearLayout  -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="1dip" -->
+<!--         android:background="@android:color/white"> -->
+<!--     </LinearLayout> -->
+<!--     <RelativeLayout -->
+<!--         android:id="@+id/top_bg_layout" -->
+<!--         android:layout_width="match_parent" -->
+<!--         android:layout_height="@dimen/top_bg_layout_height" -->
+<!--         android:orientation="horizontal" -->
+<!--         android:background="@drawable/shape_top_bar_bg" -->
+<!--         > -->
+<!--         <ImageView  -->
+<!--             android:layout_width="wrap_content" -->
+<!--             android:layout_height="wrap_content" -->
+<!--             android:layout_centerHorizontal="true" -->
+<!--             android:layout_centerVertical="true" -->
+<!--             android:src="@drawable/temr_sub_logo" -->
+<!--             android:scaleType="centerInside" -->
+<!--             /> -->
+<!--         <ImageView  -->
+<!--             android:layout_width="wrap_content" -->
+<!--             android:layout_height="match_parent" -->
+<!--             android:layout_alignParentRight="true" -->
+<!--             android:layout_centerVertical="true" -->
+<!--             android:src="@drawable/temr_doctor" -->
+<!--             android:scaleType="centerCrop" -->
+<!--             /> -->
+<!--     </RelativeLayout> -->
+    <!-- 구분선 -->
+    <LinearLayout 
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:background="@android:color/white">
+    </LinearLayout>
+    <ListView
+        android:id="@+id/notice_list"  
+        android:layout_width="fill_parent" 
+        android:layout_height="fill_parent"
+        android:background="#ffffff"
+        android:cacheColorHint="#ffffff"
+        />
+</LinearLayout>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:startColor="@color/listview_row_pressed_start_gradient_color"
+        android:endColor="@color/listview_row_pressed_end_gradient_color"
+        android:angle="-90"/>
+    <stroke
+        android:width="1dip"
+        android:color="@color/listview_row_pressed_stroke_color"/>
+    <corners 
+        android:radius="15dip" />
+</shape>

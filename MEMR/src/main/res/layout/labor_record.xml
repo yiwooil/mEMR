@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:background="@color/background"
+    >
+
+    <!-- 구분선 -->
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:background="@android:color/white">
+    </LinearLayout>
+
+    <!-- 환자정보 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="@dimen/pat_info_bar_height"
+        android:background="@drawable/shape_navi_bg"
+        >
+        <TextView
+            android:id="@+id/patient_info_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_margin="10dip"
+            android:textColor="@color/titleforeground"
+            android:textSize="@dimen/normal_text_size"
+            />
+    </LinearLayout>
+
+    <!-- 환자정보2 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="180dip"
+        >
+        <TextView
+            android:id="@+id/patient_info_text_view2"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_margin="10dip"
+            android:textColor="@android:color/black"
+            android:textSize="@dimen/normal_text_size"
+            android:lineSpacingExtra ="12dip"
+            />
+    </LinearLayout>
+
+    <!-- Labor Record Graph -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="500dip"
+        >
+        <com.metrosoft.smart.emr.emrdroid.gt101.view.LaborRecordGraphView
+            android:id="@+id/labor_record_graph_view"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            />
+    </LinearLayout>
+
+    <HorizontalScrollView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        >
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:paddingTop="2dip"
+        android:paddingRight="4dip"
+        android:paddingBottom="4dip"
+        android:paddingLeft="4dip"
+        android:orientation="vertical"
+        >
+        <!-- 구분선 -->
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="1dip"
+            android:background="@android:color/black">
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="2dip"
+            android:paddingRight="4dip"
+            android:paddingBottom="4dip"
+            android:paddingLeft="4dip"
+            >
+            <include layout="@layout/labor_record_list_view_row_header"></include>
+        </LinearLayout>
+        <!-- 구분선 -->
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="1dip"
+            android:background="@android:color/black">
+        </LinearLayout>
+        <ListView
+            android:id="@+id/labor_record_list_view"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:cacheColorHint="@color/background"
+            android:divider="@android:color/black"
+            android:dividerHeight="1dip"
+            />
+    </LinearLayout>
+    </HorizontalScrollView>
+
+</LinearLayout>

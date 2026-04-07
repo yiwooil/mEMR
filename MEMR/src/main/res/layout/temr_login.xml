@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/temr_login_layout"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:background="@drawable/temr_login"
+    >
+    <!-- T biz Mobile EMR 이미지 -->
+    <ImageView 
+        android:layout_width="310dip"
+        android:layout_height="80dip"
+        android:layout_marginTop="440dip" 
+        android:layout_marginLeft="240dip"
+        android:src="@drawable/biz_ico"
+        android:scaleType="fitXY"
+        />
+    <!-- 사용자인증이라는 글씨 이미지 -->
+    <ImageView 
+        android:layout_width="75dip"
+        android:layout_height="18dip"
+        android:layout_marginTop="587dip" 
+        android:layout_marginLeft="240dip"
+        android:src="@drawable/login_title"
+        android:scaleType="fitXY"
+        />
+    <!-- 병원선택 -->
+	<Spinner
+	    android:id="@+id/hospitalListSpinner"
+	    android:layout_width="260dip"
+	    android:layout_height="40dip"
+	    android:layout_marginTop="576dip" 
+        android:layout_marginLeft="400dip"
+	    android:drawSelectorOnTop="false" />
+    <!-- 사용자ID 이미지 -->
+    <ImageView
+        android:layout_width="330dip"
+        android:layout_height="54dip"
+        android:layout_marginTop="619dip" 
+        android:layout_marginLeft="232dip"
+        android:src="@drawable/login_id"
+        android:scaleType="fitXY"
+        />
+	<!-- 사용자ID -->
+	<EditText 
+	    android:id="@+id/loginUserId" 
+	    android:inputType="text"
+	    android:layout_width="170dip"
+	    android:layout_height="40dip"
+        android:layout_marginTop="628dip" 
+        android:layout_marginLeft="380dp"
+	    />
+    <!-- 비밀번호 이미지 -->
+    <ImageView
+        android:layout_width="330dip"
+        android:layout_height="54dip"
+        android:layout_marginTop="684dip" 
+        android:layout_marginLeft="232dip"
+        android:src="@drawable/login_pw"
+        android:scaleType="fitXY"
+        />
+		<!-- 비밀번호 -->
+	<EditText 
+	    android:id="@+id/loginPassword" 
+	    android:inputType="textPassword"
+	    android:layout_width="170dip"
+	    android:layout_height="40dip"
+        android:layout_marginTop="692dip" 
+        android:layout_marginLeft="380dp"
+	    />
+	<!-- 버튼모음 -->
+	<LinearLayout
+	    android:orientation="horizontal"
+	    android:layout_width="326dip"
+	    android:layout_height="47dip"
+        android:layout_marginTop="750dip" 
+        android:layout_marginLeft="235dip"
+	     >
+		<!-- 로그인버튼 -->
+	    <Button
+	        android:id="@+id/okButton"
+	        android:text="@string/ok"
+	        android:layout_width="245dip"
+	        android:layout_height="match_parent"
+	        android:layout_weight="2"
+	        android:textColor="@color/button_text"
+	        android:background="@drawable/blue_button"/>
+	    <!-- 취소버튼 -->
+	    <Button
+	        android:id="@+id/cancelButton"
+	        android:text="@string/cancel"
+	        android:layout_width="130dip"
+	        android:layout_height="match_parent"
+	        android:layout_weight="1"
+	        android:textColor="@color/button_text"
+	        android:background="@drawable/blue_button"/>
+    </LinearLayout>
+    <!-- sk 로고 -->
+    <ImageView 
+        android:layout_width="285dip"
+        android:layout_height="100dip"
+        android:layout_marginTop="1080dip" 
+        android:layout_marginLeft="260dip"
+        android:src="@drawable/sk"
+        android:scaleType="fitXY"
+        />
+</FrameLayout>

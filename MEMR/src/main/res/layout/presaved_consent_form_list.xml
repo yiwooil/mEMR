@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:background="@color/background"
+    >
+    
+    <RelativeLayout 
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="40dip"
+        >
+        <!-- 2026.02.20 WOOIL - 진료과 선택 버튼 -->
+        <Button
+            android:id="@+id/dept_button"
+            android:textSize="@dimen/normal_text_size"
+            android:layout_width="120dip"
+            android:layout_height="fill_parent"
+            android:background="@drawable/selector_button_background"
+            android:layout_alignParentLeft="true"
+            />
+        <!-- 2026.02.20 WOOIL - 의사 선택 버튼 -->
+        <Button
+            android:id="@+id/pdrid_button"
+            android:textSize="@dimen/normal_text_size"
+            android:layout_width="120dip"
+            android:layout_height="fill_parent"
+            android:background="@drawable/selector_button_background"
+            android:layout_toRightOf="@id/dept_button"
+            />
+        <!-- 환자명등 검색자료 -->
+        <EditText
+            android:id="@+id/search_text" 
+            android:inputType="text"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:layout_marginTop="2dip"
+            android:layout_toLeftOf="@+id/search_button"
+            android:layout_toRightOf="@id/pdrid_button"
+            />
+        <!-- 검색버튼 -->
+        <Button
+            android:id="@+id/search_button"
+            android:text="검색"
+            android:textSize="@dimen/small_small_text_size"
+            android:drawableLeft="@drawable/search_button_icon"
+            android:paddingLeft="10dip" 
+            android:layout_width="80dip"
+            android:layout_height="fill_parent"
+            android:layout_marginTop="2dip"
+            android:layout_marginRight="2dip"
+            android:layout_marginBottom="6dip"
+            android:background="@drawable/selector_button_background"
+            android:layout_alignParentRight="true"
+            />
+    </RelativeLayout>
+    
+    <!-- 자료가 조회되는 리스트가 보이는 부분 -->
+    <LinearLayout
+        android:id="@+id/consent_form_list_layout"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:orientation="vertical"
+        android:background="@color/tab_unselected_color"
+        android:paddingTop="2dip"
+        android:paddingRight="4dip"
+        android:paddingBottom="4dip"
+        android:paddingLeft="4dip"
+        android:layout_marginBottom="@dimen/bottom_area_height"
+        >
+        <ListView
+            android:id="@+id/consent_form_list"  
+            android:layout_width="fill_parent" 
+            android:layout_height="fill_parent"
+            android:cacheColorHint="@color/background"
+            android:divider="@null"
+            android:dividerHeight="0dip"
+            />
+    </LinearLayout>
+</LinearLayout>

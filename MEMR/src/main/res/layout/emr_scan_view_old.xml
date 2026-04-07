@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout 
+	xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    >
+    <LinearLayout
+    	xmlns:android="http://schemas.android.com/apk/res/android"
+    	android:orientation="vertical"
+	    android:layout_width="fill_parent"
+	    android:layout_height="fill_parent"
+	    >
+        <TextView
+            android:id="@+id/patientInfoTextView"
+            style="@style/PatientInfo"
+            />
+		<ImageView
+			android:id="@+id/emrScanView"  
+			android:layout_width="fill_parent"
+			android:layout_height="fill_parent"
+			android:scaleType="matrix" />
+   </LinearLayout>
+   <LinearLayout
+       xmlns:android="http://schemas.android.com/apk/res/android"
+       android:orientation="horizontal"
+       android:layout_width="fill_parent"
+       android:layout_height="fill_parent"
+       android:gravity="right|bottom"
+       >
+       <Button
+           android:id="@+id/rotateRightButton"
+           android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@string/rotate_right" />
+       <Button
+           android:id="@+id/rotateLeftButton"
+           android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:text="@string/rotate_left" />
+   </LinearLayout>
+</FrameLayout>
+
+
+

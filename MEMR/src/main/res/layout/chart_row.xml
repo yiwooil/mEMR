@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="4dip"
+    android:paddingBottom="6dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingLeft="5dip"
+    android:background="@drawable/shape_listview_row"
+    >
+    <!-- 진료일자 -->
+    <TextView
+        android:id="@+id/exdt_chart_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/exdt_chart_row_width"
+        android:layout_height="wrap_content"
+         />
+    <!-- SOAP종류 -->
+    <TextView
+        android:id="@+id/c_case_chart_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/c_case_chart_row_width"
+        android:layout_height="wrap_content"
+        />
+    <!-- 내용 -->
+    <TextView
+        android:id="@+id/rmk1_chart_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+</LinearLayout>

@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/chart_layout"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/background"
+    >
+    <!-- 구분선 -->
+<!--     <LinearLayout  -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="1dip" -->
+<!--         android:background="@android:color/white"> -->
+<!--     </LinearLayout> -->
+<!--     <RelativeLayout -->
+<!--         android:id="@+id/top_bg_layout" -->
+<!--         android:layout_width="match_parent" -->
+<!--         android:layout_height="@dimen/top_bg_layout_height" -->
+<!--         android:orientation="horizontal" -->
+<!--         android:background="@drawable/shape_top_bar_bg" -->
+<!--         > -->
+<!--         <ImageView  -->
+<!--             android:layout_width="wrap_content" -->
+<!--             android:layout_height="wrap_content" -->
+<!--             android:layout_centerHorizontal="true" -->
+<!--             android:layout_centerVertical="true" -->
+<!--             android:src="@drawable/temr_sub_logo" -->
+<!--             android:scaleType="centerInside" -->
+<!--             /> -->
+<!--         <ImageView  -->
+<!--             android:layout_width="wrap_content" -->
+<!--             android:layout_height="match_parent" -->
+<!--             android:layout_alignParentRight="true" -->
+<!--             android:layout_centerVertical="true" -->
+<!--             android:src="@drawable/temr_doctor" -->
+<!--             android:scaleType="centerCrop" -->
+<!--             /> -->
+<!--     </RelativeLayout> -->
+    <!-- 구분선 -->
+    <LinearLayout 
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:background="@android:color/white">
+    </LinearLayout>
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="45dip"
+        android:background="@drawable/shape_navi_bg"
+        >
+        <TextView
+            android:id="@+id/patientInfoTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_margin="10dip"
+            android:textColor="@color/titleforeground"
+            android:textSize="@dimen/normal_text_size"
+            />
+    </LinearLayout>
+<!--     <LinearLayout -->
+<!--         xmlns:android="http://schemas.android.com/apk/res/android" -->
+<!--         android:orientation="horizontal" -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="wrap_content" -->
+<!--         > -->
+<!--         <TextView -->
+<!--             android:id="@+id/patientInfoTextView" -->
+<!--             style="@style/PatientInfo" -->
+<!--             /> -->
+<!--     </LinearLayout> -->
+    <!-- 구분선 -->
+    <LinearLayout 
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:background="@android:color/white">
+    </LinearLayout>
+    <LinearLayout 
+        android:orientation="vertical"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        >
+        <TabHost
+            android:id="@+id/tabHost"
+            android:layout_width="fill_parent" 
+            android:layout_height="fill_parent" > 
+            <TabWidget
+                android:id="@android:id/tabs"
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:background="@color/tab_unselected_color" />
+            <FrameLayout
+                android:id="@android:id/tabcontent" 
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="55dip" >
+                <LinearLayout 
+                    android:id="@+id/tab_in_patient"
+                    android:orientation="horizontal"
+                    android:layout_width="fill_parent"
+                    android:layout_height="wrap_content"
+                    >
+                </LinearLayout>
+                <LinearLayout 
+                    android:id="@+id/tab_out_patient"
+                    android:orientation="vertical"
+                    android:layout_width="fill_parent"
+                    android:layout_height="wrap_content"
+                    >
+                </LinearLayout>
+                <LinearLayout 
+                    android:id="@+id/tab_er_patient"
+                    android:orientation="vertical"
+                    android:layout_width="fill_parent"
+                    android:layout_height="wrap_content"
+                    >
+                </LinearLayout>
+            </FrameLayout>
+        </TabHost>
+    </LinearLayout>
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:background="@color/tab_unselected_color"
+        android:paddingTop="2dip"
+        android:paddingRight="4dip"
+        android:paddingBottom="4dip"
+        android:paddingLeft="4dip"
+        >
+        <ListView 
+            android:id="@+id/list"  
+            android:layout_width="fill_parent" 
+            android:layout_height="wrap_content"
+            android:cacheColorHint="@color/background"
+            android:divider="@null"
+            android:dividerHeight="0dip"
+            />
+    </LinearLayout>
+</LinearLayout>

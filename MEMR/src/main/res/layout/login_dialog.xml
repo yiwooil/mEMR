@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- xml파일에서 android:minWidth와 android:minHeight를 사용하는 방법입니다.
+ 사이즈를 강제함으로써 원하는 크기로 볼수 있는 방법이지만 단점은 모든 디바이스에 적용시킬 수 없다는 단점이 있습니다. -->
+
+<LinearLayout 
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:orientation="vertical"
+	android:layout_width="fill_parent" 
+	android:layout_height="fill_parent"
+	android:minWidth="300dip"
+	android:minHeight="300dip"
+	android:background="@color/background"
+    android:padding="20dip"
+	>
+	<Spinner
+		android:id="@+id/hospitalListSpinner"
+		android:layout_width="fill_parent"
+		android:layout_height="40dip"
+		android:layout_marginRight="10dip"
+		android:drawSelectorOnTop="false" />
+	<TextView 
+		android:text="@string/login_userid" 
+		android:textColor="@color/foreground"
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content" />
+	<EditText 
+		android:id="@+id/loginUserId" 
+		android:inputType="textVisiblePassword"
+		android:layout_width="fill_parent"
+		android:layout_height="40dip" 
+		android:layout_marginRight="10dp" />
+	<TextView 
+		android:text="@string/login_password" 
+        android:textColor="@color/foreground"
+		android:layout_width="wrap_content" 
+		android:layout_height="wrap_content" />
+	<EditText 
+		android:id="@+id/loginPassword" 
+		android:inputType="textPassword"
+		android:layout_width="fill_parent"
+		android:layout_height="40dip" 
+		android:layout_marginRight="10dip" />
+	<LinearLayout 
+		android:orientation="horizontal"
+		android:layout_width="fill_parent" 
+		android:layout_height="fill_parent" >
+		<Button
+			android:id="@+id/okButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center_vertical|center_horizontal"
+			android:layout_weight="2"
+			android:text="@string/ok"/>
+		<Button
+			android:id="@+id/cancelButton"
+			android:layout_width="wrap_content"
+			android:layout_height="wrap_content"
+			android:layout_gravity="center_vertical|center_horizontal"
+			android:layout_weight="1" 
+			android:layout_marginRight="10dip"
+			android:text="@string/cancel"/>
+	</LinearLayout>
+</LinearLayout>	

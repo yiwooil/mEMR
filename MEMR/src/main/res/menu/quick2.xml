@@ -1,0 +1,22 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/consent_list"
+        android:title="동의서목록"
+        android:orderInCategory="1">
+    </item>
+    <item
+        android:id="@+id/consent_list_query"
+        android:title="동의서열람"
+        android:orderInCategory="2">
+    </item>
+    <item
+        android:id="@+id/notice_menu"
+        android:title="@string/notice"
+        android:orderInCategory="4">
+    </item>
+    <item
+        android:id="@+id/set_config_menu"
+        android:title="@string/set_config"
+        android:orderInCategory="5">
+    </item>
+</menu>

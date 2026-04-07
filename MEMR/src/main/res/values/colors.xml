@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- white #FFFFFF -->
+    <!-- lavender #E6E6FA -->
+    <!-- steelblue #4682B4 -->
+    <!-- 모름 #323331 -->
+    <!-- ghostwhite #F8F8FF -->
+    <!-- gray #808080 -->
+    <!-- slategray #708090 -->
+    <!-- dimgray #696969 -->
+    <!-- powderblue #B0E0E6 -->
+    <!-- silver #C0C0C0 -->
+    <!-- blue #0000FF -->
+    <!-- red #FFFF0000 -->
+    <!-- gainsboro #DCDCDC -->
+    <!-- azure #F0FFFF -->
+    <!-- Color.LTGRAY 0xffcccccc -->
+    <color name="background">#FFFFFFFF</color>
+    <color name="foreground">#FF000000</color>
+    <color name="button_text">#FFFFFFFF</color>
+    <color name="titlebackground">#FF4682B4</color>
+    <color name="titleforeground">#FFFFFFFF</color>
+    <color name="patient_info_back_start">#FF87CEEB</color>
+    <color name="patient_info_back_end">#FFB0E0E6</color>
+    <color name="patient_info_foreground">#FF222222</color>
+    <color name="order_date_line_bg">#00D3D3D3</color>
+    <color name="transparent">#00000000</color>
+    <color name="pencolor">#000000</color>
+    <color name="oddcolumn">#FFDCDCDC</color>
+    <color name="rowdivbackground">#ffcccccc</color>
+    <color name="progress_dialog_color">#FF87CEEB</color>
+    <color name="temr_titlebackground">#0f3b4f</color>
+    <color name="temr_pat_info_background">#185c7b</color>
+<!--     <color name="tab_selected_color">#0f3b4f</color>154c62 -->
+    <color name="tab_selected_color">#154c62</color>
+    <color name="tab_unselected_color">#185c7b</color>
+    <!-- LISTVIEW 의 ROW 모양을 결정하는 색 -->
+    <color name="listview_row_start_gradient_color">#ffffff</color>
+    <color name="listview_row_end_gradient_color">#ffffff</color>
+    <color name="listview_row_stroke_color">#FF4682B4</color>
+    <color name="listview_row_pressed_start_gradient_color">#87c3fa</color>
+    <color name="listview_row_pressed_end_gradient_color">#00bfff</color>
+    <color name="listview_row_pressed_stroke_color">#FF4682B4</color>
+    <!-- LISTVIEW 의 ROW 반전모양을 결정하는 색 -->
+    <color name="listview_reverse_row_start_gradient_color">#ffcccccc</color>
+    <color name="listview_reverse_row_end_gradient_color">#ffcccccc</color>
+    <color name="listview_reverse_row_stroke_color">#FF4682B4</color>
+    <color name="listview_reverse_row_pressed_start_gradient_color">#87c3fa</color>
+    <color name="listview_reverse_row_pressed_end_gradient_color">#00bfff</color>
+    <color name="listview_reverse_row_pressed_stroke_color">#FF4682B4</color>
+    <!-- TPR조회에서 사용되는 색 -->
+    <color name="tpr_date_color">#e0ecf8</color>
+    <color name="tpr_time_color">#cacecf</color>
+    <color name="tpr_tmp_color">#fbdabb</color>
+    <color name="tpr_bp_color">#e0fabb</color>
+    
+</resources>

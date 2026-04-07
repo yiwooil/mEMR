@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="8dip"
+    android:paddingBottom="8dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/shape_listview_row"
+    >
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <!-- 진료과 -->
+            <TextView
+                android:id="@+id/patient_list_row_dptcd"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:paddingLeft="5dip"
+                android:layout_width="@dimen/patient_list_row_dptcd"
+                android:layout_height="wrap_content" />
+            <!-- 병동 -->
+            <TextView
+                android:id="@+id/patient_list_row_ward"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/patient_list_row_ward"
+                android:layout_height="wrap_content" />
+            <LinearLayout
+                android:layout_width="fill_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+	            <LinearLayout
+		            android:layout_width="fill_parent"
+		            android:layout_height="wrap_content"
+		            android:orientation="horizontal">
+		            <!-- 주치의 -->
+		            <TextView
+		                android:id="@+id/patient_list_row_pdrnm"
+		                android:textColor="@color/foreground"
+		                android:textSize="@dimen/normal_text_size"
+		                android:layout_width="@dimen/patient_list_row_pdrnm"
+		                android:layout_height="wrap_content" />
+		            <!-- 진료자격 -->
+		            <TextView
+		                android:id="@+id/patient_list_row_qfycdnm"
+		                android:textColor="@color/foreground"
+		                android:textSize="@dimen/normal_text_size"
+		                android:layout_width="@dimen/patient_list_row_qfycdnm"
+		                android:layout_height="wrap_content" />
+		            <!-- 입원일 ~ 퇴원일 -->
+		            <TextView
+		                android:id="@+id/patient_list_row_disp_bededt_bedodt"
+		                android:textColor="@color/foreground"
+		                android:textSize="@dimen/normal_text_size"
+		                android:layout_width="@dimen/patient_list_row_disp_bededt_bedodt"
+		                android:layout_height="wrap_content" />
+		        </LinearLayout>   
+		        <!-- 진단명 -->
+		        <TextView
+		            android:id="@+id/patient_list_row_dxd"
+		            android:textColor="@color/foreground"
+		            android:textSize="@dimen/small_small_text_size"
+		            android:layout_width="@dimen/patient_list_row_dxd"
+		            android:layout_height="wrap_content" />
+		    </LinearLayout>
+		</LinearLayout>             
+	</LinearLayout>    
+</LinearLayout>

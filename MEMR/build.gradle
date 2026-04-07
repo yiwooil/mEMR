@@ -1,0 +1,37 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.metrosoft.smart.emr.emrdroid.gt101"
+    compileSdkVersion 35
+    buildToolsVersion "35.0.0"
+
+    defaultConfig {
+        applicationId "com.metrosoft.smart.emr.emrdroid.gt101"
+        minSdkVersion 14
+        targetSdkVersion 35
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+    }
+
+    lintOptions {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+
+    useLibrary 'org.apache.http.legacy'
+}
+
+dependencies {
+    implementation 'com.android.support:support-v4:+'
+    implementation 'com.android.support:appcompat-v7:+'
+    implementation 'com.android.support.constraint:constraint-layout:2.0.4'
+    // 2025.12.08 WOOIL - 아래 두 개 추가
+    // 바코드 스캐너(예시 버전, 실제로는 프로젝트에 맞는 버전 선택)
+    implementation 'com.journeyapps:zxing-android-embedded:3.6.0@aar'
+    implementation 'com.google.zxing:core:3.3.0'
+}

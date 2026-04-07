@@ -1,0 +1,147 @@
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android" 
+    android:layout_width="fill_parent" 
+    android:layout_height="fill_parent"
+    android:orientation="horizontal"
+    >
+    <!--  2013.07.02 에 백업함 -->
+    <!-- 타이틀바에 줄하나를 더 넣기 전에... -->
+    <Button 
+        android:id="@+id/backButtonCTB"
+        android:text=""
+        android:textSize="@dimen/small_small_text_size"
+        android:clickable="true"
+        android:layout_width="wrap_content" 
+        android:layout_height="fill_parent"
+        android:layout_marginLeft="9dip" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:drawableLeft="@drawable/prev_button_icon"
+        android:drawablePadding="@dimen/button_drawable_padding"
+        android:layout_alignParentLeft="true" />
+    <TextView 
+        android:id="@+id/titleCTB" 
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:text=""
+        android:textSize="@dimen/normal_text_size"  
+        android:textColor="@color/titleforeground"
+        android:gravity="center"
+        android:padding="8dip"
+        android:layout_toRightOf="@+id/backButtonCTB" />
+        
+    <Button
+        android:id="@+id/queryButtonCTB" 
+        android:text="@string/query"
+        android:clickable="true" 
+        android:layout_width="wrap_content" 
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:drawableLeft="@drawable/query_button_icon"
+        android:drawablePadding="@dimen/button_drawable_padding"
+        android:layout_toLeftOf="@+id/button1CTB" />
+        
+    <Button
+        android:id="@+id/button1CTB" 
+        android:text=""
+        android:clickable="true" 
+        android:layout_width="wrap_content" 
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:layout_toLeftOf="@+id/button2CTB" />
+        
+    <Button 
+        android:id="@+id/button2CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:layout_toLeftOf="@+id/button3CTB" />
+        
+    <Button 
+        android:id="@+id/button3CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:layout_toLeftOf="@+id/button4CTB" />
+        
+    <Button 
+        android:id="@+id/button4CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:layout_toLeftOf="@+id/button5CTB" />
+        
+    <Button 
+        android:id="@+id/button5CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:layout_toLeftOf="@+id/linkButton1CTB" />
+        
+    <Button 
+        android:id="@+id/linkButton1CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="@dimen/ctb_button_margin_top"
+        android:layout_marginBottom="@dimen/ctb_button_margin_bottom"
+        android:paddingLeft="@dimen/ctb_button_padding_left"
+        android:paddingRight="@dimen/ctb_button_padding_right"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/selector_button_background"
+        android:drawableRight="@drawable/next_button_icon"
+        android:drawablePadding="@dimen/button_drawable_padding"
+        android:layout_toLeftOf="@+id/rightest" />
+        
+    <TextView 
+        android:id="@+id/rightest" 
+        android:text=""
+        android:layout_marginRight="9dip" 
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_alignParentRight="true" />
+
+</RelativeLayout>

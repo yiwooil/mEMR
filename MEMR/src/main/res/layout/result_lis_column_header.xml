@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="4dip"
+    android:paddingBottom="6dip"
+    android:layout_width="fill_parent"
+    android:layout_height="70dip"
+    android:orientation="horizontal"
+    android:background="@drawable/shape_listview_row"
+    >
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        >
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="15dip"
+            android:orientation="horizontal"
+            >
+<!--             <TextView -->
+<!--                 android:text="처방일" -->
+<!--                 android:textColor="@color/foreground" -->
+<!--                 android:textSize="@dimen/normal_text_size" -->
+<!--                 android:layout_width="110dip" -->
+<!--                 android:layout_height="wrap_content" /> -->
+            <TextView
+                android:text="검사항목"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/abbrnm_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="결과"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/rstval_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="이전결과"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/beforerstval_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="R"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/referchk_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="P"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/panicchk_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="D"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/deltachk_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="참고치"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_marginLeft="5dip"
+                android:layout_width="@dimen/reference_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="결과단위"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/unit_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            </LinearLayout>
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="15dip"
+            android:orientation="horizontal">
+<!--             <TextView -->
+<!--                 android:text="" -->
+<!--                 android:textColor="@color/foreground" -->
+<!--                 android:layout_width="110dip" -->
+<!--                 android:layout_height="wrap_content" /> -->
+            <TextView
+                android:text="검체"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/spcnm_result_lis_row_width"
+                android:layout_height="wrap_content" />
+            <TextView
+                android:text="주치의"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/majnm_result_lis_row_width"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

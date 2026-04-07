@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.metrosoft.smart.emr.emrdroid.gt101"
+    android:largeHeap="true"
+    android:versionCode="124"
+    android:versionName="2.3.9">
+    <!--
+    <uses-sdk
+        android:minSdkVersion="11"
+        android:targetSdkVersion="30" />
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" />
+
+    <supports-screens
+        android:anyDensity="true"
+        android:largeScreens="true" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/emrdroid_icon"
+        android:label="@string/app_name"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+        <activity
+            android:name=".activity.MemrMainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".activity.Splash"
+            android:theme="@android:style/Theme.NoTitleBar" />
+        <activity
+            android:name=".activity.NoticeList"
+            android:configChanges="orientation|keyboard"
+            android:label="@string/notice"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.NoticeDetail"
+            android:configChanges="orientation|keyboard"
+            android:label="@string/notice_detail"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.InPatientList"
+            android:label="@string/inpatient_list"
+            android:theme="@style/CustomTitleTheme" />
+        <activity android:name=".activity.LaborRecord"
+            android:label="Labor Record"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.IoSheet"
+            android:label="IO Sheet"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.IoEnter"
+            android:label="IO등록"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.DmSheet"
+            android:label="DM Sheet"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.DmEnter"
+            android:label="DM등록"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.TprSheet"
+            android:label="@string/tpr"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.TprEnter"
+            android:label="@string/tpr_enter"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.Order"
+            android:label="@string/order"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.PatientSafeCheck"
+            android:label="환자안전관리"
+            android:theme="@style/CustomTitleTheme"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+        <activity
+            android:name=".activity.Register"
+            android:label="@string/register"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.Login"
+            android:label="@string/app_name"
+            android:theme="@android:style/Theme.NoTitleBar" />
+        <activity
+            android:name=".activity.ConsentFormList"
+            android:label="@string/certificate_list"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.ConsentForm"
+            android:label="@string/certificate_paper"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.SignedConsentFormList"
+            android:label="@string/certificate_list"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.PresavedConsentFormList"
+            android:label="임시저장동의서목록"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.CommonCode"
+            android:label=""
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.EmrScanView"
+            android:label="@string/emr_scan_view"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.PatientHosHx"
+            android:label="@string/patient_hos_hx"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.GetLatestVersionDialog"
+            android:label="@string/set_config"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.ConfigSetting"
+            android:label="@string/set_config"
+            android:theme="@style/CustomTitleTheme" />
+        <activity
+            android:name=".activity.MP4PlayDialog"
+            android:label="녹음듣기"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.PicShowDialog"
+            android:label="사진보기"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.PicShowImageDialog"
+            android:configChanges="orientation"
+            android:label="사진" />
+        <activity
+            android:name=".activity.SelectPatientDialog"
+            android:label="환자선택"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.TimePickDialog"
+            android:label="시간선택"
+            android:theme="@android:style/Theme.Dialog" />
+        <activity
+            android:name=".activity.NrChartWrite"
+            android:theme="@android:style/Theme.Dialog"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
+
+        <provider
+            android:name="android.support.v4.content.FileProvider"
+            android:authorities="com.metrosoft.smart.emr.emrdroid.gt101.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>

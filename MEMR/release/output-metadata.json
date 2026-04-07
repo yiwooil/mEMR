@@ -1,0 +1,21 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "com.metrosoft.smart.emr.emrdroid.gt101",
+  "variantName": "release",
+  "elements": [
+    {
+      "type": "SINGLE",
+      "filters": [],
+      "attributes": [],
+      "versionCode": 124,
+      "versionName": "2.3.9",
+      "outputFile": "MEMR-release.apk"
+    }
+  ],
+  "elementType": "File",
+  "minSdkVersionForDexing": 14
+}

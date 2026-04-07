@@ -1,0 +1,22 @@
+메뉴바에서 Project 선택
+Build Automatically 해제
+Project->Clean...
+Project Explorer에서 MEMR우클릭
+Build Project 선택
+APK 생성
+
+APK 생성전 EmrLib도 같은 과정 거침
+
+** android:targetSdkVersion="30" 로 인한 추가작업 **
+   APK Signature scheme v2를 추가해야함.
+
+cmd를 관리자 권한으로 실행.
+
+폴더
+   cd C:\MyJava\workspace-memr-client\MEMR\apk
+   
+sign버전을 확인하는 스크립트
+    java -jar C:\Eclipse\android-sdk-windows\build-tools\24.0.3\lib\apksigner.jar verify -v --print-certs .\EmrDroid.GT101.apk
+
+sign하는 스크립트
+    java -jar C:\Eclipse\android-sdk-windows\build-tools\24.0.3\lib\apksigner.jar sign -v --out .\EmrDroid.GT101.1.apk --ks C:\MyJava\workspace-memr-client\MEMR\key\emrdroid.gt101.keystore --ks-key-alias memr .\EmrDroid.GT101.apk

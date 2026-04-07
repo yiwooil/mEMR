@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/nr_chart_write_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="#FFFFFFFF">
+
+    <LinearLayout
+        android:id="@+id/nr_chart_write_top_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/nr_chart_write_date"
+            android:layout_width="100dp"
+            android:layout_height="wrap_content"
+            android:hint="일자"
+            android:singleLine="true"
+            android:inputType="number"
+            android:maxLength="8"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp" />
+
+        <EditText
+            android:id="@+id/nr_chart_write_time"
+            android:layout_width="60dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="6dp"
+            android:hint="시간"
+            android:singleLine="true"
+            android:inputType="number"
+            android:maxLength="4"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp" />
+
+        <Button
+            android:id="@+id/nr_chart_write_save"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="6dp"
+            android:paddingLeft="3dp"
+            android:paddingTop="7dp"
+            android:paddingRight="3dp"
+            android:paddingBottom="7dp"
+            android:text="저장"
+            android:textSize="@dimen/normal_text_size"
+            android:background="@drawable/selector_button_background"
+            />
+
+        <Button
+            android:id="@+id/nr_chart_write_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="6dp"
+            android:paddingLeft="3dp"
+            android:paddingTop="7dp"
+            android:paddingRight="3dp"
+            android:paddingBottom="7dp"
+            android:text="취소"
+            android:textSize="@dimen/normal_text_size"
+            android:background="@drawable/selector_button_background"
+            />
+
+        <Button
+            android:id="@+id/nr_chart_write_ai"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="6dp"
+            android:paddingLeft="3dp"
+            android:paddingTop="7dp"
+            android:paddingRight="3dp"
+            android:paddingBottom="7dp"
+            android:text="A.I."
+            android:textSize="@dimen/normal_text_size"
+            android:background="@drawable/selector_button_background"
+            />
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/nr_chart_write_original_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="원문"
+        android:padding="4dp"
+        android:background="#777777"
+        android:textColor="#FFFFFF" />
+
+    <EditText
+        android:id="@+id/nr_chart_write_original"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="top|left"
+        android:hint="내용을 입력하세요"
+        android:inputType="textMultiLine"
+        android:scrollbars="vertical"
+        android:padding="8dp" />
+
+    <TextView
+        android:id="@+id/nr_chart_write_ai_result_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="AI결과. AI는 실수할 수 있습니다. 내용을 확인하세요."
+        android:padding="4dp"
+        android:background="#777777"
+        android:textColor="#FFFFFF"/>
+
+    <EditText
+        android:id="@+id/nr_chart_write_ai_result"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="top|left"
+        android:hint="AI 결과"
+        android:inputType="textMultiLine"
+        android:scrollbars="vertical"
+        android:padding="8dp"
+        android:focusable="false"
+        android:clickable="false"/>
+</LinearLayout>

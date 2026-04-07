@@ -1,0 +1,142 @@
+<RelativeLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent" 
+    android:layout_height="fill_parent"
+    android:orientation="horizontal"
+    >
+    <!-- 2013.5.9 백업한 것임. -->
+    <!-- minWidth가 동작하지 않는다. -->
+    <!-- RelativeLayout이기 때문일까??? -->
+    <Button 
+        android:id="@+id/backButtonCTB"
+        android:text=""
+        android:textSize="@dimen/small_small_text_size"
+        android:clickable="true"
+        android:layout_width="wrap_content" 
+        android:layout_height="fill_parent"
+        android:layout_marginLeft="9dip" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/link_button"
+        android:layout_alignParentLeft="true" />
+    <TextView 
+        android:id="@+id/titleCTB" 
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:text=""
+        android:textAppearance="?android:attr/textAppearanceLarge"  
+        android:textColor="@color/titleforeground"
+        android:gravity="center"
+        android:padding="8dip"
+        android:layout_toRightOf="@+id/backButtonCTB" />
+        
+    <Button
+        android:id="@+id/queryButtonCTB" 
+        android:text="@string/query"
+        android:clickable="true" 
+        android:layout_width="wrap_content" 
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/normal_button"
+        android:layout_toLeftOf="@+id/button1CTB" />
+        
+    <Button
+        android:id="@+id/button1CTB" 
+        android:text=""
+        android:clickable="true" 
+        android:layout_width="wrap_content" 
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/normal_button"
+        android:layout_toLeftOf="@+id/button2CTB" />
+        
+    <Button 
+        android:id="@+id/button2CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/normal_button"
+        android:layout_toLeftOf="@+id/button3CTB" />
+        
+    <Button 
+        android:id="@+id/button3CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/normal_button"
+        android:layout_toLeftOf="@+id/button4CTB" />
+        
+    <Button 
+        android:id="@+id/button4CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/normal_button"
+        android:layout_toLeftOf="@+id/button5CTB" />
+        
+    <Button 
+        android:id="@+id/button5CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/normal_button"
+        android:layout_toLeftOf="@+id/linkButton1CTB" />
+        
+    <Button 
+        android:id="@+id/linkButton1CTB"
+        android:text=""
+        android:clickable="true"
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_marginTop="9dip"
+        android:layout_marginBottom="9dip"
+        android:paddingLeft="9dip"
+        android:paddingRight="9dip"
+        android:minWidth="@dimen/button_min_width"
+        android:background="@drawable/link_button"
+        android:layout_toLeftOf="@+id/rightest" />
+        
+    <TextView 
+        android:id="@+id/rightest" 
+        android:text=""
+        android:layout_marginRight="9dip" 
+        android:layout_width="wrap_content"
+        android:layout_height="fill_parent" 
+        android:layout_alignParentRight="true" />
+
+</RelativeLayout>

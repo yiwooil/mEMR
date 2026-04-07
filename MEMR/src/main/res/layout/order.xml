@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+	xmlns:android="http://schemas.android.com/apk/res/android"
+	android:id="@+id/chart_layout"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/background"
+    >
+    
+    <!-- 구분선 -->
+    <LinearLayout 
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:background="@android:color/white">
+    </LinearLayout>
+    <!-- 환자정보 -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="@dimen/pat_info_bar_height"
+        android:background="@drawable/shape_navi_bg"
+        >
+        <Button 
+            android:id="@+id/pickFrDate"
+            android:textSize="@dimen/small_text_size"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_marginLeft="7dip"
+            android:layout_marginTop="3dip"
+            android:layout_marginBottom="3dip"
+            android:paddingTop="3dip"
+            android:paddingBottom="3dip"
+            android:paddingLeft="15dip"
+            android:paddingRight="15dip"
+            android:background="@drawable/selector_button_background"
+            android:text=""/>
+        <TextView
+            android:id="@+id/pickDateBar"
+            android:textSize="@dimen/small_text_size"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_marginTop="3dip"
+            android:layout_marginBottom="3dip"
+            android:paddingTop="3dip"
+            android:paddingBottom="3dip"
+            android:paddingLeft="3dip"
+            android:paddingRight="3dip"
+            android:text=" - "/>
+        <Button 
+            android:id="@+id/pickToDate"
+            android:textSize="@dimen/small_text_size"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_marginTop="3dip"
+            android:layout_marginBottom="3dip"
+            android:paddingTop="3dip"
+            android:paddingBottom="3dip"
+            android:paddingLeft="15dip"
+            android:paddingRight="15dip"
+            android:background="@drawable/selector_button_background"
+            android:text=""/>
+        <TextView
+            android:id="@+id/patientInfoTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_margin="10dip"
+            android:textColor="@color/titleforeground"
+            android:textSize="@dimen/normal_text_size"
+            />
+    </LinearLayout>
+    <TabHost
+        android:id="@+id/tabHost"
+        android:layout_width="fill_parent" 
+        android:layout_height="fill_parent"
+        android:layout_marginTop="1dip" >
+        <HorizontalScrollView
+            android:id="@+id/horizontalScrollView"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal"
+            android:scrollbarAlwaysDrawHorizontalTrack="true" 
+            android:addStatesFromChildren="true"
+            android:fillViewport="true"
+            >
+        <TabWidget
+            android:id="@android:id/tabs"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/tab_unselected_color" />
+        </HorizontalScrollView>
+        <FrameLayout
+            android:id="@android:id/tabcontent" 
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="52dip" >
+            
+            <include android:id="@+id/tab_order" layout="@layout/tab_order"></include><!-- 처방 -->
+            <include android:id="@+id/tab_chart" layout="@layout/tab_chart"></include><!-- 기록지 -->
+            <include android:id="@+id/tab_nr_chart" layout="@layout/tab_nr_chart"></include><!-- 간호기록지 -->
+	        <include android:id="@+id/tab_result_rad" layout="@layout/tab_result_rad"></include><!-- 영상진단결과(방사선결과) -->
+            <include android:id="@+id/tab_result_spe" layout="@layout/tab_result_spe"></include><!-- 기능검사결과 -->
+	        <include android:id="@+id/tab_result_lis" layout="@layout/tab_result_lis"></include><!-- 진단검사결과(임상병리결과) -->
+            <!-- <include android:id="@+id/tab_result_lis_spcno" layout="@layout/tab_result_lis_spcno"></include>--><!-- 진단검사결과(임상병리결과).검체번호우선조회 -->
+            <include android:id="@+id/tab_emr_scan" layout="@layout/tab_emr_scan"></include><!-- 기타서식(스캔이미지) -->
+            <include android:id="@+id/tab_med_record" layout="@layout/tab_med_record"></include><!-- 투약기록지 -->
+            
+        </FrameLayout>
+    </TabHost>
+</LinearLayout>

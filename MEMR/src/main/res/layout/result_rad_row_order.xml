@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="4dip"
+    android:paddingBottom="6dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/shape_listview_row"
+    >
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <!-- 처방일 -->
+	    <TextView
+	        android:id="@+id/orddate"
+	        android:textColor="@color/foreground"
+	        android:textSize="@dimen/normal_text_size"
+	        android:paddingLeft="8dip"
+	        android:gravity="center_vertical"
+	        android:layout_width="@dimen/result_rad_row_order_orddate_width"
+	        android:layout_height="wrap_content"
+	        android:minHeight="45dip"
+	         />
+	    <!-- 처방번호 -->
+	    <TextView
+	        android:id="@+id/ono"
+	        android:textColor="@color/foreground"
+	        android:textSize="@dimen/normal_text_size"
+	        android:gravity="right"
+	        android:layout_width="@dimen/result_rad_row_order_ono_width"
+	        android:layout_height="wrap_content" />
+	    <!-- 처방번호뒤의 . -->
+	    <TextView
+	        android:gravity="right"
+	        android:textColor="@color/foreground"
+	        android:textSize="@dimen/normal_text_size"
+	        android:layout_width="@dimen/result_rad_row_order_ono_dot_width"
+	        android:layout_height="wrap_content" 
+	        android:text="." />
+	    <!-- 처방명 -->
+	    <TextView
+	        android:id="@+id/onm"
+	        android:textColor="@color/foreground"
+	        android:textSize="@dimen/normal_text_size"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content" />
+    </LinearLayout>
+</LinearLayout>

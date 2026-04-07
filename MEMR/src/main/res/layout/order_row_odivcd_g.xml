@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="4dip"
+    android:paddingBottom="6dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/shape_listview_row"
+    >
+    <!-- 처방일 -->
+    <TextView
+        android:id="@+id/odt_chart_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/large_text_size"
+        android:layout_width="@dimen/odt_chart_row_width"
+        android:layout_height="wrap_content" />
+    <!-- DC여부 -->
+    <TextView
+        android:id="@+id/dcfgnm_chart_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/small_text_size"
+        android:layout_width="@dimen/dcfgnm_chart_row_width"
+        android:layout_height="wrap_content" />
+    <!-- 처방번호 -->
+    <TextView
+        android:id="@+id/ono_chart_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:gravity="right"
+        android:layout_width="@dimen/ono_chart_row_width"
+        android:layout_height="wrap_content" />
+    <LinearLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <!-- 처방명 -->
+            <TextView
+                android:id="@+id/onm_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/onm_chart_row_width_odivcd_g"
+                android:layout_height="wrap_content" />
+            <!-- 투여량 -->
+            <TextView
+                android:id="@+id/oqty_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:gravity="right"
+                android:paddingRight="5dip"
+                android:layout_width="@dimen/oqty_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 단위. 개로 고정 -->
+            <TextView
+                android:text="개"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/ounit_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 횟수. null로 고정 -->
+            <TextView
+                android:text=""
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:gravity="right"
+                android:paddingRight="5dip"
+                android:layout_width="@dimen/ordcnt_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 횟수명. null로 고정 -->
+            <TextView
+                android:text=""
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/ordcntnm_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 일수 -->
+            <TextView
+                android:id="@+id/odaycnt_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:gravity="right"
+                android:paddingRight="5dip"
+                android:layout_width="@dimen/odaycnt_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 일수명 -->
+            <TextView
+                android:text="일"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/odaycntnm_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 급여구분 -->
+            <TextView
+                android:id="@+id/alwfgnm_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="@dimen/alwfgnm_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 처방상태 -->
+            <TextView
+                android:id="@+id/ostscd_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:paddingLeft="5dip"
+                android:layout_width="@dimen/ostscd_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- 처방의 -->
+            <TextView
+                android:id="@+id/exdrnm_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:paddingLeft="5dip"
+                android:layout_width="@dimen/exdrnm_chart_row_width"
+                android:layout_height="wrap_content" />
+            <!-- prn처방여부 -->
+            <TextView
+                android:id="@+id/prnfg_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:paddingLeft="5dip"
+                android:layout_width="@dimen/prnfg_chart_row_width"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <!-- 처방종류 -->
+            <TextView
+                android:id="@+id/odivcdnm_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/small_small_text_size"
+                android:layout_width="@dimen/odivcdnm_chart_row_width"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+        <!-- 리마크1 -->
+        <TextView
+                android:id="@+id/rmk1_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        <!-- 리마크2 -->
+        <TextView
+                android:id="@+id/rmk2_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        <!-- 리마크3 -->
+        <TextView
+                android:id="@+id/rmk3_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        <!-- 리마크4 -->
+        <TextView
+                android:id="@+id/rmk4_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        <!-- 리마크5 -->
+        <TextView
+                android:id="@+id/rmk5_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        <!-- 리마크6 -->
+        <TextView
+                android:id="@+id/rmk6_chart_row"
+                android:textColor="@color/foreground"
+                android:textSize="@dimen/normal_text_size"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="4dip"
+    android:paddingBottom="10dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/shape_listview_row"
+    >
+    <!-- 처방코드 -->
+    <TextView
+        android:id="@+id/ocd_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:paddingLeft="5dip"
+        android:minHeight="50dip"
+        android:gravity="center"
+        android:layout_width="@dimen/med_record_ocd_row_width"
+        android:layout_height="wrap_content" />
+    <!-- 처방명 -->
+    <TextView
+        android:id="@+id/onm_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/med_record_onm_row_width"
+        android:layout_height="wrap_content" />
+    <!-- 단위 -->
+    <TextView
+        android:id="@+id/dunit_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/med_record_dunit_row_width"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt0_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:background="@color/oddcolumn"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt1_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt2_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:background="@color/oddcolumn"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt3_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt4_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:background="@color/oddcolumn"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt5_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt6_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:background="@color/oddcolumn"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt7_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+    <!-- 실시수량 -->
+    <TextView
+        android:id="@+id/ordcnt8_row"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:background="@color/oddcolumn"
+        android:layout_width="@dimen/med_record_ordcnt_row_width"
+        android:gravity="center"
+        android:layout_height="wrap_content" />
+<!--     실시수량 -->
+<!--     <TextView -->
+<!--         android:id="@+id/ordcnt9_row" -->
+<!--         android:textColor="@color/foreground" -->
+<!--         android:textSize="@dimen/normal_text_size" -->
+<!--         android:layout_width="45dip" -->
+<!--         android:paddingLeft="5dip" -->
+<!--         android:gravity="center" -->
+<!--         android:layout_height="wrap_content" /> -->
+<!--     실시수량 -->
+<!--     <TextView -->
+<!--         android:id="@+id/ordcnt10_row" -->
+<!--         android:textColor="@color/foreground" -->
+<!--         android:textSize="@dimen/normal_text_size" -->
+<!--         android:background="@color/oddcolumn" -->
+<!--         android:layout_width="45dip" -->
+<!--         android:paddingLeft="5dip" -->
+<!--         android:gravity="center" -->
+<!--         android:layout_height="wrap_content" /> -->
+<!--     실시수량 -->
+<!--     <TextView -->
+<!--         android:id="@+id/ordcnt11_row" -->
+<!--         android:textColor="@color/foreground" -->
+<!--         android:textSize="@dimen/normal_text_size" -->
+<!--         android:layout_width="45dip" -->
+<!--         android:paddingLeft="5dip" -->
+<!--         android:gravity="center" -->
+<!--         android:layout_height="wrap_content" /> -->
+</LinearLayout>

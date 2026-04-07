@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    >
+    <LinearLayout
+        android:id="@+id/order_list_layout"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:background="@color/tab_unselected_color"
+        android:paddingTop="2dip"
+        android:paddingRight="4dip"
+        android:paddingBottom="4dip"
+        android:paddingLeft="4dip"
+        android:layout_marginBottom="@dimen/bottom_area_height"
+        android:orientation="vertical"
+        >
+        <TextView
+            android:id="@+id/order_list_no_data"
+            android:layout_width="fill_parent"
+            android:layout_height="60dp"
+            android:textAppearance="?android:attr/textAppearanceLarge"
+            android:background="@drawable/bg_rounded_white"
+            android:textColor="@android:color/black"
+            android:text="등록된 자료가 없습니다."
+            android:gravity="center"
+            />
+        <ListView
+            android:id="@+id/order_list"  
+            android:layout_width="fill_parent" 
+            android:layout_height="fill_parent"
+            android:cacheColorHint="@color/background"
+            android:divider="@null"
+            android:dividerHeight="0dip"
+            />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,418 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/main_layout"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:orientation="vertical">
+    <!-- 구분선 -->
+    <LinearLayout 
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:background="@android:color/white">
+    </LinearLayout>
+<!--     <LinearLayout -->
+<!--         android:orientation="horizontal" -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="@dimen/pat_info_bar_height" -->
+<!--         android:background="@drawable/shape_navi_bg" -->
+<!--         > -->
+<!--         <TextView -->
+<!--             android:id="@+id/certificate_title" -->
+<!--             android:layout_width="wrap_content" -->
+<!--             android:layout_height="fill_parent" -->
+<!--             android:layout_margin="10dip" -->
+<!--             android:textColor="@color/titleforeground" -->
+<!--             android:textSize="@dimen/normal_text_size" -->
+<!--             /> -->
+<!--     </LinearLayout> -->
+    <!-- 구분선 -->
+<!--     <LinearLayout  -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="1dip" -->
+<!--         android:background="@android:color/white"> -->
+<!--     </LinearLayout> -->
+    <LinearLayout
+        android:id="@+id/button_layout"
+	    android:layout_width="fill_parent"
+	    android:layout_height="50dip"
+	    android:orientation="horizontal">
+        
+	    <Button
+	        android:id="@+id/record_button"
+	        android:layout_width="50dip"
+	        android:layout_height="fill_parent"
+	        android:layout_marginLeft="5dip"
+	        android:layout_marginRight="3dip"
+	        android:layout_marginTop="8dip"
+	        android:layout_marginBottom="7dip"
+            android:minWidth="@dimen/button_min_width"
+	        android:background="@drawable/selector_button_background"
+	        android:text="녹음" 
+	        />
+        <Button
+            android:id="@+id/pic_button"
+            android:layout_width="50dip"
+            android:layout_height="fill_parent"
+            android:layout_marginLeft="3dip"
+            android:layout_marginRight="7dip"
+            android:layout_marginTop="8dip"
+            android:layout_marginBottom="7dip"
+            android:minWidth="@dimen/button_min_width"
+            android:background="@drawable/selector_button_background"
+            android:text="촬영" 
+            />
+	    <RadioGroup 
+	        android:id="@+id/pen_group"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:layout_gravity="center_vertical"
+	        android:orientation="horizontal"
+	        >
+	        <RadioButton
+	            android:id="@+id/radio_pen"
+	            android:layout_width="wrap_content"
+	            android:layout_height="wrap_content"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:paddingLeft="12dp"
+				android:paddingRight="12dp"
+				android:paddingTop="6dp"
+				android:paddingBottom="8dp"
+				android:minHeight="40dp"
+				android:gravity="center"
+	            android:text="펜"
+	            android:checked="true" />
+	        <RadioButton
+	            android:id="@+id/radio_eraser"
+	            android:layout_width="wrap_content"
+	            android:layout_height="wrap_content"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:paddingLeft="12dp"
+				android:paddingRight="12dp"
+				android:paddingTop="6dp"
+				android:paddingBottom="8dp"
+				android:minHeight="40dp"
+				android:gravity="center"
+	            android:text="지우개" />
+	        <RadioButton
+	            android:id="@+id/radio_none"
+	            android:layout_width="wrap_content"
+	            android:layout_height="wrap_content"
+	            android:text="확대/축소 " />
+	    </RadioGroup>
+        <Button
+            android:id="@+id/undo_sign_button"
+            android:layout_width="70dip"
+            android:layout_height="fill_parent"
+            android:layout_marginLeft="3dip"
+            android:layout_marginRight="7dip"
+            android:layout_marginTop="8dip"
+            android:layout_marginBottom="7dip"
+            android:minWidth="@dimen/button_min_width"
+            android:background="@drawable/selector_button_background"
+            android:text="입력취소" 
+            />
+	    <Spinner
+	        android:id="@+id/pen_width_spinner"
+	        android:layout_width="wrap_content"
+	        android:layout_height="45dip"
+	        android:layout_marginTop="5dip"
+	        android:layout_marginRight="5dip"
+	        android:drawSelectorOnTop="false" />
+        <Spinner
+            android:id="@+id/eraser_width_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="45dip"
+            android:layout_marginTop="5dip"
+            android:layout_marginRight="5dip"
+            android:drawSelectorOnTop="false" />
+        <Spinner
+            android:id="@+id/pen_color_spinner"
+            android:layout_width="wrap_content"
+            android:layout_height="45dip"
+            android:layout_marginTop="5dip"
+            android:layout_marginRight="5dip"
+            android:drawSelectorOnTop="false" />
+        <HorizontalScrollView
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+        >
+        <RadioGroup 
+            android:id="@+id/page_group"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:orientation="horizontal"
+            >
+            <RadioButton
+                android:id="@+id/page_1"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="1 "
+                android:checked="true" />
+            <RadioButton
+                android:id="@+id/page_2"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="2 " />
+            <RadioButton
+                android:id="@+id/page_3"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="3 " />
+            <RadioButton
+                android:id="@+id/page_4"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="4 " />
+            <RadioButton
+                android:id="@+id/page_5"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="5 " />
+            <RadioButton
+                android:id="@+id/page_6"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="6 " />
+            <RadioButton
+                android:id="@+id/page_7"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="7 " />
+            <RadioButton
+                android:id="@+id/page_8"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="8 " />
+            <RadioButton
+                android:id="@+id/page_9"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+                android:text="9 " />
+			<RadioButton
+				android:id="@+id/page_10"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="10 " />
+			<RadioButton
+				android:id="@+id/page_11"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="11 " />
+			<RadioButton
+				android:id="@+id/page_12"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="12 " />
+			<RadioButton
+				android:id="@+id/page_13"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="13 " />
+			<RadioButton
+				android:id="@+id/page_14"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="14 " />
+			<RadioButton
+				android:id="@+id/page_15"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:minWidth="42dp"
+				android:minHeight="42dp"
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:gravity="center"
+				android:padding="0dp"
+				android:text="15 " />
+        </RadioGroup>
+        </HorizontalScrollView>
+    </LinearLayout>
+	<!-- 구분선 -->
+	<LinearLayout
+		android:layout_width="fill_parent"
+		android:layout_height="1dip"
+		android:background="@android:color/white">
+	</LinearLayout>
+	<!-- 추가 확장 영역: 향후 컨트롤 계속 추가 가능 -->
+	<LinearLayout
+		android:id="@+id/add_button_layout"
+		android:layout_width="fill_parent"
+		android:layout_height="wrap_content"
+		android:orientation="vertical"
+		android:paddingLeft="10dip"
+		android:paddingRight="10dip"
+		android:paddingTop="6dip"
+		android:paddingBottom="6dip">
+
+		<LinearLayout
+			android:layout_width="fill_parent"
+			android:layout_height="wrap_content"
+			android:orientation="horizontal"
+			android:gravity="center_vertical">
+
+			<TextView
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="저장일"
+				android:textSize="@dimen/normal_text_size"
+				android:layout_marginRight="8dip" />
+
+			<EditText
+				android:id="@+id/apply_exdt"
+				android:layout_width="110dip"
+				android:layout_height="wrap_content"
+				android:inputType="number"
+				android:maxLength="8"
+				android:singleLine="true"
+				android:textSize="@dimen/normal_text_size"
+				android:padding="6dip" />
+
+			<TextView
+				android:id="@+id/apply_drnm_label"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="의사명"
+				android:textSize="@dimen/normal_text_size"
+				android:layout_marginRight="8dip" />
+
+			<EditText
+				android:id="@+id/apply_drnm"
+				android:layout_width="90dip"
+				android:layout_height="wrap_content"
+				android:singleLine="true"
+				android:textSize="@dimen/normal_text_size"
+				android:padding="6dip" />
+
+		</LinearLayout>
+	</LinearLayout>
+	<!-- 동의서 영역 -->
+    <LinearLayout
+	    android:id="@+id/view_layout"
+	    android:layout_width="fill_parent"
+	    android:layout_height="fill_parent"
+	    android:layout_weight="1"
+	    android:orientation="vertical">
+	    <WebView 
+		    android:id="@+id/certificate_view"
+		    android:layout_width="fill_parent"
+		    android:layout_height="fill_parent"
+		    android:background="#FF000000"
+		/>
+	</LinearLayout>
+    <!-- 구분선 -->
+<!--     <LinearLayout  -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="1dip" -->
+<!--         android:background="@android:color/white"> -->
+<!--     </LinearLayout> -->
+    <!-- 바닥정보 -->
+    <LinearLayout
+        android:id="@+id/bottom_layout"
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="22dip"
+        android:background="@drawable/shape_navi_bg"
+        >
+        <TextView
+            android:id="@+id/bottomInfoTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="fill_parent"
+            android:layout_margin="10dip"
+            android:textColor="@color/titleforeground"
+            android:textSize="@dimen/normal_text_size"
+            />
+    </LinearLayout>
+    <!-- 구분선 -->
+<!--     <LinearLayout  -->
+<!--         android:layout_width="fill_parent" -->
+<!--         android:layout_height="1dip" -->
+<!--         android:background="@android:color/white"> -->
+<!--     </LinearLayout> -->
+</LinearLayout>

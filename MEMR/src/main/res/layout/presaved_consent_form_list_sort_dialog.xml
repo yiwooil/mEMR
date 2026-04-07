@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout 
+	xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:minWidth="200dip"
+    android:minHeight="250dip"
+    android:background="@color/background"
+    >
+    <!-- 타이틀 부분임. -->
+    <include layout="@layout/custom_dialog_title_bar"></include>
+    <!-- 본문부분임 -->
+    <RadioGroup
+	    android:id="@+id/rg_sort"
+	    android:layout_width="fill_parent" 
+	    android:layout_height="wrap_content"
+	    android:orientation="vertical"
+	    android:checkedButton="@+id/rb_sort_pnm" 
+	    android:paddingLeft="20dip"
+	    android:paddingTop="20dip"
+	    android:paddingRight="40dip"
+	    android:paddingBottom="20dip"
+	    >
+	    <!-- 재원환자용 -->
+		<RadioButton
+		    android:id="@+id/rb_sort_pnm_exdt"
+		    android:layout_width="fill_parent" 
+		    android:layout_height="wrap_content" 
+		    android:paddingBottom="10dip"
+		    android:textColor="#000000"
+		    android:text="@string/pnm_exdt"
+		    android:textSize="@dimen/normal_text_size"
+		    />
+		<RadioButton
+		    android:id="@+id/rb_sort_exdt_pnm"
+		    android:layout_width="fill_parent" 
+		    android:layout_height="wrap_content" 
+		    android:paddingBottom="10dip"
+		    android:textColor="#000000"
+		    android:text="@string/exdt_pnm"
+		    android:textSize="@dimen/normal_text_size"
+		    />
+		<RadioButton
+			android:id="@+id/rb_sort_form_pnm"
+			android:layout_width="fill_parent"
+			android:layout_height="wrap_content"
+			android:paddingBottom="10dip"
+			android:textColor="#000000"
+			android:text="@string/form_pnm"
+			android:textSize="@dimen/normal_text_size"
+			/>
+	</RadioGroup>
+	<LinearLayout
+	    android:orientation="horizontal"
+	    android:layout_width="fill_parent"
+	    android:layout_height="45dip"
+	    android:layout_margin="3dip"
+	    >
+		<Button
+			android:id="@+id/apply_button"
+		    android:layout_width="wrap_content" 
+		    android:layout_height="fill_parent" 
+		    android:text="@string/apply"
+		    android:textSize="@dimen/normal_text_size"
+		    android:background="@drawable/selector_button_background"
+		    android:layout_weight="2"
+		    />
+		<Button
+			android:id="@+id/cancel_button"
+		    android:layout_width="wrap_content" 
+		    android:layout_height="fill_parent" 
+		    android:text="@string/cancel"
+		    android:textSize="@dimen/normal_text_size"
+            android:background="@drawable/selector_button_background"
+		    android:layout_weight="1"
+		    />
+    </LinearLayout>
+</LinearLayout>

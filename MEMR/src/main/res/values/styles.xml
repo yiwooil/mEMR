@@ -1,0 +1,65 @@
+<resources xmlns:android="http://schemas.android.com/apk/res/android" tools:locale="ko" xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- 타이틀 바 모양 -->
+    <style name="CustomTitleTheme" parent="android:Theme">
+        <item name="android:windowTitleSize">@dimen/title_bar_height</item>
+        <item name="android:windowTitleBackgroundStyle">@style/CustomWindowTitleBackground</item>
+    </style>
+    <!-- 타이틀 바 모양 -->
+    <!--
+    <style name="TemrCustomTitleTheme" parent="android:Theme">
+        <item name="android:windowTitleSize">@dimen/temr_title_bar_height</item>
+        <item name="android:windowTitleBackgroundStyle">@style/CustomWindowTitleBackground</item>
+    </style>
+    -->
+    <!-- 타이틀 바의 배경색 -->
+    <style name="CustomWindowTitleBackground">
+        <item name="android:background">@color/temr_titlebackground</item>
+    </style>
+    <!-- 환자정보 -->
+    <style name="PatientInfo">
+        <item name="android:textColor">@color/patient_info_foreground</item>
+        <item name="android:textSize">@dimen/large_text_size</item>
+        <item name="android:layout_width">fill_parent</item>
+        <item name="android:layout_height">50dip</item>
+        <item name="android:paddingLeft">10dip</item>
+        <item name="android:paddingTop">10dip</item>
+        <item name="android:background">@drawable/patient_info_background</item>
+    </style>
+    <!-- 커스텀 다이얼로그 제목줄 -->
+    <style name="CustomDialogTheme" parent="android:style/Theme.Dialog">
+        <item name="android:windowBackground">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+    </style>
+    <!-- Radio 버튼 -->
+    <!-- selector_checkbox_background는 checkbox에도 사용할 수 있다. -->
+    <style name="CustomRadioButtonStyle" parent="android:style/Widget.CompoundButton" >
+        <item name="android:background">@drawable/selector_checkbox_background</item>
+        <item name="android:button">@null</item>"
+    </style>
+
+    <!--
+        Base application theme, dependent on API level. This theme is replaced
+        by AppBaseTheme from res/values-vXX/styles.xml on newer devices.
+    -->
+    <style name="AppBaseTheme" parent="android:Theme.Light">
+        <!--
+            Theme customizations available in newer API levels can go in
+            res/values-vXX/styles.xml, while customizations related to
+            backward-compatibility can go here.
+        -->
+    </style>
+
+    <!-- Application theme. -->
+    <style name="AppTheme" parent="AppBaseTheme">
+        <!-- All customizations that are NOT specific to a particular API-level can go here. -->
+    </style>
+
+    <!-- 커스텀 프로그래스 다이얼로그  -->
+    <style name="CustomProgressDialog" parent="android:Theme.DeviceDefault.Light.Dialog">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:textColorPrimary">@android:color/black</item>
+    </style>
+
+</resources>

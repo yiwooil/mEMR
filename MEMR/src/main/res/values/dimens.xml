@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources tools:locale="ko" xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- in Folder values, For Phones -->
+
+    <!-- Default screen margins, per the Android Design guidelines. -->
+    <dimen name="large_large_text_size">24dip</dimen> <!-- 아주 큰 글자크기 -->
+    <dimen name="large_text_size">20dip</dimen> <!-- 큰 글자크기 -->
+    <dimen name="normal_text_size">16dip</dimen> <!-- 보통 글자크기 -->
+    <dimen name="small_text_size">12dip</dimen> <!-- 작은 글자크기 -->
+    <dimen name="small_small_text_size">10dip</dimen> <!-- 아주 작은 글자크기 -->
+    <dimen name="button_min_width">50dip</dimen> <!-- 버튼의 최소 너비 -->
+
+    <dimen name="title_bar_height">50dip</dimen> <!-- 타이틀 바 높이 --> <!-- style.xml에서 사용함 -->
+    <dimen name="camera_area_height">0dip</dimen> <!-- 화면 상단 정보가 가져지는 현상이 있어서 공간을 만든다 -->
+    <dimen name="bottom_area_height">0dip</dimen> <!-- 화면 하단 정보가 가려지는 현상이 있어서 공간을 만든다 -->
+    
+    <dimen name="pat_info_bar_height">40dip</dimen> <!-- 환자정보가 표시되는 바의 높이 -->
+    <dimen name="option_bar_height">35dip</dimen> <!-- 재원환자조회화면의 진료과,병동 선택하는 버튼이 있는 바의 높이 -->
+    <dimen name="button_drawable_padding">3dip</dimen> <!-- 버튼의 올라가는 이미지의 padding값 -->
+    <dimen name="ctb_title_margin_top">0dip</dimen> <!-- 타이틀바 테스트의 top margin 값(0->8) -->
+    <dimen name="ctb_button_margin_top">8dip</dimen> <!-- 타이틀바에 있는 버튼의 top margin 값(8->28) -->
+    <dimen name="ctb_button_margin_bottom">8dip</dimen> <!-- 타이틀바에 있는 버튼의 bottom margin 값 -->
+    <dimen name="ctb_button_padding_left">11dip</dimen> <!-- 타이틀바에 있는 버튼의 left padding 값 -->
+    <dimen name="ctb_button_padding_right">14dip</dimen> <!-- 타이틀바에 있는 버튼의 right padding 값 -->
+
+    <!-- 환자조회시 사용하는 필드의 너비 -->
+    <dimen name="patient_list_row_image_width">28dip</dimen> <!-- 남녀를 구분하는 이미지 -->
+    <dimen name="patient_list_row_pnm_width">60dip</dimen> <!-- 환자명 -->
+    <dimen name="patient_list_row_psexage_width">40dip</dimen> <!-- 성/나이 -->
+    <dimen name="patient_list_row_dptcd_width">40dip</dimen> <!-- 진료과 -->
+    <dimen name="patient_list_row_ward_width">90dip</dimen> <!-- 병동-병실-병상 -->
+    <dimen name="patient_list_row_pdrnm_width">55dip</dimen> <!-- 주치의 -->
+    <dimen name="patient_list_row_qfycdnm_width">100dip</dimen> <!-- 진료자격 -->
+    <dimen name="patient_list_row_disp_bededt_bedodt_width">220dip</dimen> <!-- 입원일 ~ 퇴원일 -->
+
+    <!-- 처방조회시 사용하는 필드의 너비 -->
+    <dimen name="odt_chart_row_width">70dip</dimen> <!-- 처방일자 -->
+    <dimen name="dcfgnm_chart_row_width">15dip</dimen> <!-- dc여부 -->
+    <dimen name="ono_chart_row_width">45dip</dimen> <!-- 처방번호 -->
+    <dimen name="onm_chart_row_width_normal">80dip</dimen> <!-- 처방명 -->
+    <dimen name="onm_chart_row_width_odivcd_t">166dip</dimen>
+    <dimen name="onm_chart_row_width_odivcd_g">80dip</dimen>
+    <dimen name="onm_chart_row_width_odivcd_d">266dip</dimen>
+    <dimen name="oqty_chart_row_width">50dip</dimen> <!-- 투여량 -->
+    <dimen name="ounit_chart_row_width">35dip</dimen> <!-- 단위 -->
+    <dimen name="ordcnt_chart_row_width">35dip</dimen> <!-- 횟수 -->
+    <dimen name="ordcntnm_chart_row_width">15dip</dimen> <!-- 횟수명 -->
+    <dimen name="odaycnt_chart_row_width">25dip</dimen> <!-- 일수 -->
+    <dimen name="odaycntnm_chart_row_width">25dip</dimen> <!-- 일수명 -->
+    <dimen name="alwfgnm_chart_row_width">40dip</dimen> <!-- 급여구분 -->
+    <dimen name="ostscd_chart_row_width">20dip</dimen> <!-- 처방상태 -->
+    <dimen name="exdrnm_chart_row_width">70dip</dimen> <!-- 처방의 -->
+    <dimen name="prnfg_chart_row_width">45dip</dimen> <!-- prn처방여부 -->
+    <dimen name="odivcdnm_chart_row_width">200dip</dimen> <!-- 처방종류 -->
+
+
+    <!-- 기록지조회시 사용하는 필드의 너비 -->
+    <dimen name="exdt_chart_row_width">70dip</dimen> <!-- 진료일자 -->
+    <dimen name="c_case_chart_row_width">30dip</dimen> <!-- SOAP종류 -->
+    <dimen name="rmk1_chart_row_width">370dip</dimen> <!-- 내용 -->
+
+
+    <!-- 투약기록지조회시 사용하는 필드의 너비 -->
+    <dimen name="med_record_ocd_row_width">90dip</dimen> <!-- 처방코드 -->
+    <dimen name="med_record_onm_row_width">85dip</dimen> <!-- 처방명 -->
+    <dimen name="med_record_dunit_row_width">45dip</dimen> <!-- 단위 -->
+    <dimen name="med_record_ordcnt_row_width">45dip</dimen> <!-- 실시수량 -->
+
+
+    <!-- 방사선결과조회시 사용하는 필드의 너비 -->
+    <dimen name="result_rad_row_order_orddate_width">110dip</dimen> <!-- 처방일 -->
+    <dimen name="result_rad_row_order_ono_width">50dip</dimen> <!-- 처방번호 -->
+    <dimen name="result_rad_row_order_ono_dot_width">2dip</dimen> <!-- 처방번호뒤의 . -->
+
+    <!-- 기능검사결과조회시 사용하는 필드의 너비 -->
+    <dimen name="result_spe_row_order_orddate_width">110dip</dimen> <!-- 처방일 -->
+    <dimen name="result_spe_row_order_ono_width">50dip</dimen> <!-- 처방번호 -->
+    <dimen name="result_spe_row_order_ono_dot_width">2dip</dimen> <!-- 처방번호뒤의 . -->
+
+    <!-- 진단검사결과조회시 사용하는 필드의 너비 -->
+    <dimen name="abbrnm_result_lis_row_width">220dip</dimen> <!-- 검사항목 -->
+    <dimen name="rstval_result_lis_row_width">130dip</dimen> <!-- 결과 -->
+    <dimen name="beforerstval_result_lis_row_width">130dip</dimen> <!-- 이전결과 -->
+    <dimen name="referchk_result_lis_row_width">15dip</dimen> <!-- R -->
+    <dimen name="panicchk_result_lis_row_width">15dip</dimen> <!-- P -->
+    <dimen name="deltachk_result_lis_row_width">15dip</dimen> <!-- D -->
+    <dimen name="reference_result_lis_row_width">130dip</dimen> <!-- 참고치 -->
+    <dimen name="unit_result_lis_row_width">80dip</dimen> <!-- 결과단위 -->
+    <dimen name="spcnm_result_lis_row_width">90dip</dimen> <!-- 검체명 -->
+    <dimen name="majnm_result_lis_row_width">90dip</dimen> <!-- 주치의 -->
+
+
+    <!-- 입내원이력조회시 사요하는 필드의 너비 -->
+    <dimen name="patient_list_row_dptcd">40dip</dimen> <!-- 진료과 -->
+    <dimen name="patient_list_row_ward">0dip</dimen> <!-- 병동 -->
+    <!-- 숨기기 -->
+    <dimen name="patient_list_row_pdrnm">60dip</dimen> <!-- 주치의 -->
+    <dimen name="patient_list_row_qfycdnm">70dip</dimen> <!-- 진료자격 -->
+    <dimen name="patient_list_row_disp_bededt_bedodt">220dip</dimen> <!-- 입원일 ~ 퇴원일 -->
+    <dimen name="patient_list_row_dxd">800dip</dimen> <!-- 진단명 -->
+
+
+    <!-- 진단검사결과조회시 사용하는 필드의 너비(검체리스트) -->
+    <dimen name="result_lis_row_spcno_orddate_width">100dip</dimen> <!-- 처방일 -->
+    <dimen name="result_lis_row_spcno_deptcd_width">50dip</dimen> <!-- 진료과 -->
+    <dimen name="result_lis_row_spcno_ward_width">60dip</dimen> <!-- 병동/병실 -->
+    <dimen name="result_lis_row_spcno_ordnm_width">60dip</dimen> <!-- 처방의 -->
+    <dimen name="result_lis_row_spcno_alltestnm_width">150dip</dimen> <!-- 검사항목 -->
+    <dimen name="result_lis_row_spcno_spcnm_width">90dip</dimen> <!-- 검체 -->
+    <dimen name="result_lis_row_spcno_stsnm_width">60dip</dimen> <!-- 상태 -->
+    <dimen name="result_lis_row_spcno_vfydtm_width">180dip</dimen> <!-- 검사일시 -->
+    <dimen name="result_lis_row_spcno_rcvdtm_width">180dip</dimen> <!-- 접수일시 -->
+    <dimen name="result_lis_row_spcno_spcno_width">110dip</dimen> <!-- 검체번호 -->
+
+
+    <!-- 진단검사 검체리스트의 높이 -->
+    <dimen name="result_lis_row_spcno_height">100dip</dimen>
+    <dimen name="activity_horizontal_margin">16dp</dimen>
+    <dimen name="activity_vertical_margin">16dp</dimen>
+
+</resources>

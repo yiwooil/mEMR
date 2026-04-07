@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:paddingTop="4dip"
+    android:paddingBottom="6dip"
+    android:layout_width="fill_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/shape_listview_row"
+    >
+    <!-- 처방일 -->
+    <TextView
+        android:id="@+id/orddt"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:paddingLeft="8dip"
+        android:layout_width="@dimen/result_lis_row_spcno_orddate_width"
+        android:layout_height="wrap_content"
+         />
+    <!-- 진료과 -->
+    <TextView
+        android:id="@+id/deptcd"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_deptcd_width"
+        android:layout_height="wrap_content" />
+    <!-- 병동/병상 -->
+    <TextView
+        android:id="@+id/ward"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_ward_width"
+        android:layout_height="wrap_content" />
+    <!-- 처방의 -->
+    <TextView
+        android:id="@+id/ordnm"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_ordnm_width"
+        android:layout_height="wrap_content" />
+    <!-- 검사명 -->
+    <TextView
+        android:id="@+id/alltestnm"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_alltestnm_width"
+        android:layout_height="wrap_content" />
+    <!-- 검체 -->
+    <TextView
+        android:id="@+id/spcnm"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_spcnm_width"
+        android:layout_height="wrap_content" />
+    <!-- 상태 -->
+    <TextView
+        android:id="@+id/stsnm"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_stsnm_width"
+        android:layout_height="wrap_content" />
+    <!-- 검사일시 -->
+    <TextView
+        android:id="@+id/vfydtm"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_vfydtm_width"
+        android:layout_height="wrap_content" />
+    <!-- 접수일시 -->
+    <TextView
+        android:id="@+id/rcvdtm"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_rcvdtm_width"
+        android:layout_height="wrap_content" />
+    <!-- 검체번호 -->
+    <TextView
+        android:id="@+id/spcno"
+        android:textColor="@color/foreground"
+        android:textSize="@dimen/normal_text_size"
+        android:layout_width="@dimen/result_lis_row_spcno_spcno_width"
+        android:layout_height="wrap_content" />
+    
+</LinearLayout>
