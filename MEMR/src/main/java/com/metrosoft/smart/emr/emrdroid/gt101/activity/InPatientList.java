@@ -29,6 +29,7 @@ import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -111,7 +112,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
     private Button mOutDeptButton;
     private Button mOutPdridButton;
     private Button mOutSortOrderButton;
-    private android.widget.CheckBox mOutReservedInpatientOnlyCheckBox; // 2026.04.09 wooil - 입원예젖자암
+    private CheckBox mOutRsvInOnlyCheckBox; // 2026.04.09 wooil - 입원예정자암
     private ListView mPatListView;
 	
 	/* dialog로 변경하였으나, 나중에 필요시 참고하기 위하여 소스는 남겨둠.
@@ -526,8 +527,15 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
         mOutSortOrderButton = (Button) findViewById(R.id.out_sort_order_button);
         mOutSortOrderButton.setVisibility(View.GONE);
         // 2026.04.09 WOOIL - 입원예정자만(외래환자리스트)
-        mOutReservedInpatientOnlyCheckBox = (CheckBox) findViewById(R.id.out_reserved_inpatient_only);
-        mOutReservedInpatientOnlyCheckBox.setChecked(false);
+        mOutRsvInOnlyCheckBox = (CheckBox) findViewById(R.id.out_rsv_in_only_checkbox);
+        mOutRsvInOnlyCheckBox.setChecked(false);
+        mOutRsvInOnlyCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                mOutFirstVisibleItem = 0;
+                getPatientList();
+            }
+        });
 
         // 2021.09.30 WOOIL - 환자 검색시 사용할 일자선택버튼
         mSearchExdtButton = (Button) findViewById(R.id.search_exdt_button);
@@ -1051,7 +1059,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
                     param.put("exdt", getOutExdt());
                     param.put("dept", mOutDeptCode);
                     param.put("pdrid", mOutPdridCode);
-                    param.put("reserved_inpatient_only", isOutReservedInpatientOnly() ? "y" : "");
+                    param.put("rsv_in_only", isOutRsvInOnly() ? "y" : "");
                     mOutXml = getXml("InPatientListServlet", param);
                 } else {
                     // 환자이름으로검색
@@ -1582,7 +1590,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
 
         return false;
     }
-    private boolean isOutReservedInpatientOnly() {
-        return mOutReservedInpatientOnlyCheckBox != null
-                && mOutReservedInpatientOnlyCheckBox.isChecked();
+    private boolean isOutRsvInOnly() {
+        return mOutRsvInOnlyCheckBox != null
+                && mOutRsvInOnlyCheckBox.isChecked();
     }}

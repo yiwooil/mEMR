@@ -128,7 +128,7 @@
                         android:layout_weight="1" />
                     <!-- 입원예정자만 체크박스 -->
                     <CheckBox
-                        android:id="@+id/out_reserved_inpatient_only"
+                        android:id="@+id/out_rsv_in_only_checkbox"
                         android:text="입원예정자만"
                         android:textSize="@dimen/normal_text_size"
                         android:layout_width="fill_parent"
