@@ -126,6 +126,16 @@
                         android:layout_height="fill_parent"
                         android:background="@drawable/selector_button_background"
                         android:layout_weight="1" />
+                    <!-- 입원예정자만 체크박스 -->
+                    <CheckBox
+                        android:id="@+id/out_reserved_inpatient_only"
+                        android:text="입원예정자만"
+                        android:textSize="@dimen/normal_text_size"
+                        android:layout_width="fill_parent"
+                        android:layout_height="fill_parent"
+                        android:background="@drawable/selector_button_background"
+                        android:textColor="@android:color/black"
+                        android:layout_weight="1"/>
                 </LinearLayout>
                 <!-- 환자검색 탭 -->
                 <RelativeLayout 
