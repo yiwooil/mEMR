@@ -118,6 +118,8 @@ public class SignedConsentFormList extends MyActivity {
                 intent.putExtra("patientinfo", mXmlPatientInfo);
                 intent.putExtra("sub_page_list", (String) selectedMap.get("sub_page_list")); // 2022.03.22 WOOIL - 서브페이지 리스트
                 intent.putExtra("sub_page_no", (String) selectedMap.get("sub_page_no")); // 2022.03.22 WOOIL - 서브페이지 여부
+                intent.putExtra("tsa_status", (String) selectedMap.get("tsa_status")); // 2026.04.10 WOOIL - timestamp 여부(S.성공)
+                intent.putExtra("tsa_date", (String) selectedMap.get("tsa_date")); // 2026.04.10 WOOIL - timestamp 일자
                 startActivity(intent);
             }
         });
@@ -397,6 +399,8 @@ public class SignedConsentFormList extends MyActivity {
                         map.put("dptcd", rs.getString(i, "dptcd")); // 2026.02.04 WOOIL
                         map.put("drid", rs.getString(i, "drid")); // 2026.02.04 WOOIL
                         map.put("qfycd", rs.getString(i, "qfycd")); // 2026.02.04 WOOIL
+                        map.put("tsa_status", rs.getString(i, "tsa_status")); // 2026.04.10 WOOIL
+                        map.put("tsa_date", rs.getString(i, "tsa_date")); // 2026.04.10 WOOIL
                         mArrayList.add(map);
                     }
                 }
