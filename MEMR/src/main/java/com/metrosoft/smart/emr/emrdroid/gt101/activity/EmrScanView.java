@@ -11,8 +11,10 @@ package com.metrosoft.smart.emr.emrdroid.gt101.activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.webkit.WebView;
@@ -27,6 +29,8 @@ import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
 
 import org.json.JSONException;
 
+import java.io.ByteArrayOutputStream;
+
 public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
     private String mXmlPatientInfo;
     private String mPid;
@@ -35,14 +39,16 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
     private String mExdt;
     private String mSeq;
     private String mRptcd;
-    private String mPath, mPath2; // 2013.09.09 WOOIL - 자인컴은 PATH2가 있음.
-    private String mFullUrl, mFullUrl2; // 2013.09.09 WOOIL - 자인컴은 2가 있음.
+    private String mPath;// 2026.04.10 WOOIL - mPath2제거, mPath2; // 2013.09.09 WOOIL - 자인컴은 PATH2가 있음.
+    private String mFullUrl;// 2026.04.10 WOOIL - mFullUrl2 제거, mFullUrl2; // 2013.09.09 WOOIL - 자인컴은 2가 있음.
     private String mFrom; // 2014.03.10 - 동의서열람에서 왔으면 녹음파일을 듣는기능을 넣자.
     private String mSubPageList; // 2022.03.22 WOOIL - 서브페이지 리스트
     private String mSubPageNo; // 2022.03.22 WOOIL - 서브페이지 여부
     private int mPageCount; // 2022.03.22 - 동의서 페이지 수
     private String mp4Xml;
     private String picXml;
+    private String mTsaStatus; // 2026.04.10 WOOIL - TSA 상태(S.성공)
+    private String mTsaDate; // 2026.04.10 WOOIL - TSA 일자(yyyymmdd)
 
     private String[] mPathPage = new String[15]; // 2022.03.22 WOOIL - 1~10 페이지의 파일 정보
     private String[] mUrlPage = new String[15]; // 2022.03.23 WOOIL - 1~10 페이지 정보
@@ -86,11 +92,13 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
         mSeq = intent.getStringExtra("seq");
         mRptcd = intent.getStringExtra("rptcd");
         mPath = intent.getStringExtra("path");
-        mPath2 = intent.getStringExtra("path2");
+        //mPath2 = intent.getStringExtra("path2");
         mXmlPatientInfo = intent.getStringExtra("patientinfo");
         mFrom = intent.getStringExtra("from");
         mSubPageList = intent.getStringExtra("sub_page_list"); // 2022.03.22 WOOIL - 서브페이지 리스트
         mSubPageNo = intent.getStringExtra("sub_page_no"); // 2022.03.22 WOOIL - 서브페이지 여부
+        mTsaStatus = intent.getStringExtra("tsa_status"); // 2026.04.10 WOOIL
+        mTsaDate = intent.getStringExtra("tsa_date"); // 2026.04.10 WOOIL
 
         if (mFrom == null) mFrom = ""; // 2024.09.09 WOOIL - 오류방지용
         if (mSubPageList == null) mSubPageList = ""; // 2022.03.22 WOOIL - 오류방지용
@@ -168,7 +176,9 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
             getEmrScanView();
         } else {
             mFullUrl = savedInstanceState.getString("mFullUrl");
-            mFullUrl2 = savedInstanceState.getString("mFullUrl2");
+            mTsaStatus = savedInstanceState.getString("mTsaStatus"); // 2026.04.10 WOOIL
+            mTsaDate = savedInstanceState.getString("mTsaDate"); // 2026.04.10 WOOIL
+            //mFullUrl2 = savedInstanceState.getString("mFullUrl2");
             mp4Xml = savedInstanceState.getString("mp4Xml");
             picXml = savedInstanceState.getString("picXml");
             // 화면에 다시 출력
@@ -179,7 +189,9 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
     @Override
     public void onSaveInstanceState(Bundle outState) {
         outState.putString("mFullUrl", mFullUrl);
-        outState.putString("mFullUrl2", mFullUrl2);
+        outState.putString("mTsaStatus", mTsaStatus);
+        outState.putString("mTsaDate", mTsaDate);
+        //outState.putString("mFullUrl2", mFullUrl2);
         outState.putString("mp4Xml", mp4Xml);
         outState.putString("picXml", picXml);
     }
@@ -261,17 +273,18 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                 mFullUrl = getFullUrl(imageUrl);
                 Log.d("EmrDroid-Servlet", mFullUrl);
 
-                // 자인컴인 경우
-                mFullUrl2 = "";
-                if (!"".equals(mPath2)) {
-                    String imagePath2 = mPath2.replace("\\", "/");
-                    String yesNo = getXml("EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath2 + "&mode=2");
-                    if ("yes".equalsIgnoreCase(yesNo)) {
-                        String imageUrl2 = "EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath2;
-                        mFullUrl2 = getFullUrl(imageUrl2);
-                    }
-                    Log.d("EmrDroid-Servlet", mFullUrl2);
-                }
+                // 2026.04.10 WOOIL - 막음
+                //// 자인컴인 경우
+                //mFullUrl2 = "";
+                //if (!"".equals(mPath2)) {
+                //    String imagePath2 = mPath2.replace("\\", "/");
+                //    String yesNo = getXml("EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath2 + "&mode=2");
+                //    if ("yes".equalsIgnoreCase(yesNo)) {
+                //        String imageUrl2 = "EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath2;
+                //        mFullUrl2 = getFullUrl(imageUrl2);
+                //    }
+                //    Log.d("EmrDroid-Servlet", mFullUrl2);
+                //}
 
                 // 여러페이지인 경우 페이지 정보를
                 for (int i = 0; i < 15; i++) {
@@ -330,16 +343,64 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
         String imageUrl = "";
         //
         mPatientInfoTextView.setText(mXmlPatientInfo);
-        //
-        if ("".equals(mFullUrl2)) {
+        // 2026.04.10 WOOIL - mFullUrl2 제거
+        //if ("".equals(mFullUrl2)) {
+        //    imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">";
+        //} else {
+        //    // 2번째 이미지가 있는 경우
+        //    imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">"
+        //            + "<br><br>"
+        //            + "<img width='100%' src=\"" + mFullUrl2 + "\">";
+        //}
+        if ("s".equalsIgnoreCase(mTsaStatus) == false) {
             imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">";
         } else {
-            // 2번째 이미지가 있는 경우
-            imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">"
-                    + "<br><br>"
-                    + "<img width='100%' src=\"" + mFullUrl2 + "\">";
+            String stampDate = getStampDateText(mTsaDate);
+            String stampImageBase64 = getStampImageBase64();
+            String stampImgSrc = "data:image/png;base64," + stampImageBase64;
+            String imageHtml =
+                    "<div class='page-wrap'>"
+                            + "  <img class='main-img' src='" + mFullUrl + "' />"
+                            + "  <div class='stamp-wrap'>"
+                            + "    <img class='stamp-img' src='" + stampImgSrc + "' />"
+                            + "    <div class='stamp-date'>" + stampDate + "</div>"
+                            + "  </div>"
+                            + "</div>";
+            String html =
+                    "<html>"
+                            + "<head>"
+                            + "<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes' />"
+                            + "<style>"
+                            + "body { margin:0; padding:0; background:#ffffff; }"
+                            + ".page-wrap { position:relative; width:100%; }"
+                            + ".main-img { width:100%; height:auto; display:block; }"
+                            + ".stamp-wrap { position:absolute; left:10px; top:10px; width:110px; height:110px; }"
+                            + ".stamp-img { width:100%; height:100%; display:block; }"
+                            + ".stamp-date {"
+                            + "  position:absolute;"
+                            + "  left:0;"
+                            + "  top:53px;"
+                            + "  width:100%;"
+                            + "  text-align:center;"
+                            + "  font-size:14px;"
+                            + "  font-weight:bold;"
+                            + "  color:#000000;"
+                            + "}"
+                            + "</style>"
+                            + "</head>"
+                            + "<body>"
+                            + imageHtml
+                            + "</body>"
+                            + "</html>";
+            imageUrl = html;
         }
-        mWebView.loadDataWithBaseURL(null, imageUrl, "text/html", "utf-8", null);
+        mWebView.loadDataWithBaseURL(
+                null, //"android.resource://" + getPackageName() + "/",
+                imageUrl,
+                "text/html",
+                "utf-8",
+                null
+        );
         mWebView.getSettings().setSupportZoom(true);
         mWebView.getSettings().setBuiltInZoomControls(true);
         mWebView.getSettings().setUseWideViewPort(true);
@@ -559,7 +620,28 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
 
     }
 
+    private String getStampDateText(final String exdt) {
+        if (exdt == null) return "";
+        if (exdt.length() == 8) {
+            return exdt.substring(0, 4) + "." + exdt.substring(4, 6) + "." + exdt.substring(6, 8);
+        }
+        return exdt;
+    }
 
+    private String getStampImageBase64() {
+        try {
+            Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.timestamp_url);
+            if (bitmap == null) return "";
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+            byte[] imageBytes = baos.toByteArray();
+
+            return Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+        } catch (Exception e) {
+            return "";
+        }
+    }
 //	private void startPlay(){
 //		mDialog = ProgressDialog.show(EmrScanView.this, "", getString(R.string.query_wait_message), true);
 //		new Thread(new Runnable() {
