@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.metrosoft.smart.emr.emrdroid.gt101"
     android:largeHeap="true"
-    android:versionCode="124"
-    android:versionName="2.3.9">
+    android:versionCode="125"
+    android:versionName="2.4.0">
     <!--
     <uses-sdk
         android:minSdkVersion="11"

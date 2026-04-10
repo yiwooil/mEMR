@@ -28,6 +28,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -110,6 +112,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
     private Button mOutDeptButton;
     private Button mOutPdridButton;
     private Button mOutSortOrderButton;
+    private CheckBox mOutRsvInOnlyCheckBox; // 2026.04.09 wooil - 입원예정자암
     private ListView mPatListView;
 	
 	/* dialog로 변경하였으나, 나중에 필요시 참고하기 위하여 소스는 남겨둠.
@@ -512,7 +515,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
             mPdridButton.setVisibility(View.GONE);
             mOutPdridButton.setVisibility(View.GONE);
         }
-        // 정렬순서 선택 버튼( )1.환자명 순 2.병동 순 3.진료과+환자명 순)
+        // 정렬순서 선택 버튼(1.환자명 순 2.병동 순 3.진료과+환자명 순)
         mSortOrderButton = (Button) findViewById(R.id.sort_order_button);
         mSortOrderButton.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View view) {
@@ -523,6 +526,17 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
         // 정렬순서 선택 버튼(외래환자리스트)
         mOutSortOrderButton = (Button) findViewById(R.id.out_sort_order_button);
         mOutSortOrderButton.setVisibility(View.GONE);
+        // 2026.04.09 WOOIL - 입원예정자만(외래환자리스트)
+        mOutRsvInOnlyCheckBox = (CheckBox) findViewById(R.id.out_rsv_in_only_checkbox);
+        mOutRsvInOnlyCheckBox.setChecked(false);
+        mOutRsvInOnlyCheckBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                mOutFirstVisibleItem = 0;
+                getPatientList();
+            }
+        });
+
         // 2021.09.30 WOOIL - 환자 검색시 사용할 일자선택버튼
         mSearchExdtButton = (Button) findViewById(R.id.search_exdt_button);
         mSearchExdtButton.setText("");
@@ -1034,7 +1048,6 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
                     param.put("ward", mConditionWardCode);
                     param.put("dept", mConditionDeptCode);
                     param.put("pdrid", mConditionPdridCode);
-                    //param.put("pageno", String.valueOf(mPageNo));
                     mInXml = getXml("InPatientListServlet", param);
                 } else if (mTabHost.getCurrentTabTag().equals(OUT_PATIENT_LIST)) {
                     // 외래환자조회
@@ -1046,7 +1059,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
                     param.put("exdt", getOutExdt());
                     param.put("dept", mOutDeptCode);
                     param.put("pdrid", mOutPdridCode);
-                    //param.put("pageno", String.valueOf(mPageNo));
+                    param.put("rsv_in_only", isOutRsvInOnly() ? "y" : "");
                     mOutXml = getXml("InPatientListServlet", param);
                 } else {
                     // 환자이름으로검색
@@ -1577,4 +1590,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
 
         return false;
     }
-}
+    private boolean isOutRsvInOnly() {
+        return mOutRsvInOnlyCheckBox != null
+                && mOutRsvInOnlyCheckBox.isChecked();
+    }}
