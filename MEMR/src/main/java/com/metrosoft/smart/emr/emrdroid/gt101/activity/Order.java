@@ -359,6 +359,8 @@ public class Order extends MyActivity implements TabHost.OnTabChangeListener {
                 intent.putExtra("rptcd", (String) selectedMap.get("rptcd"));
                 intent.putExtra("path", (String) selectedMap.get("path"));
                 intent.putExtra("path2", (String) selectedMap.get("path2"));
+                intent.putExtra("tsa_status", (String) selectedMap.get("tsa_status")); // 2026.04.10 WOOIL - TSA상태(S.성공)
+                intent.putExtra("tsa_date", (String) selectedMap.get("tsa_date")); // 2026.04.10 WOOIL - TSA일자
                 intent.putExtra("patientinfo", mXmlPatientInfo);
                 startActivity(intent);
             }
@@ -1771,6 +1773,8 @@ public class Order extends MyActivity implements TabHost.OnTabChangeListener {
                     map.put("path", rs.getString(i, "path"));
                     map.put("path2", rs.getString(i, "path2"));
                     map.put("filename", rs.getString(i, "exdt") + "-" + rs.getString(i, "seq") + ".png");
+                    map.put("tsa_status", rs.getString(i, "tsa_status")); // 2026.04.10 WOOIL
+                    map.put("tsa_date", rs.getString(i, "tsa_date")); // 2026.04.10 WOOIL
                     map.put("dirpath", dirPath);
                     mEmrScanListArray.add(map);
                 }
