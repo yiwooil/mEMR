@@ -1,0 +1,143 @@
+package com.metrosoft.smart.emr.emrdroid.gt101.pdf;
+
+import android.content.Context;
+import android.graphics.Color;
+import android.graphics.PointF;
+import android.graphics.RectF;
+
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdmodel.PDDocument;
+import com.tom_roush.pdfbox.pdmodel.PDPage;
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+public class PdfInkPdfSaver {
+
+    public static void saveAllPages(Context context, File srcPdf, File outPdf, PdfInkSignView view) throws IOException {
+
+        PDFBoxResourceLoader.init(context);
+
+        PDDocument document = null;
+        try {
+            document = PDDocument.load(srcPdf);
+
+            HashMap<Integer, ArrayList<PdfInkStroke>> allPageStrokes = view.getAllPageStrokes();
+            HashMap<Integer, PdfSignatureOverlay> allPageSigns = view.getAllPageSignatures();
+
+            for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
+                PDPage page = document.getPage(pageIndex);
+
+                ArrayList<PdfInkStroke> strokes = allPageStrokes.get(pageIndex);
+                if (strokes != null && !strokes.isEmpty()) {
+                    savePageInkAnnotations(document, page, strokes);
+                }
+
+                PdfSignatureOverlay sign = allPageSigns.get(pageIndex);
+                if (sign != null && sign.visible && sign.bitmap != null && !sign.bitmap.isRecycled()) {
+                    savePageSignatureImage(document, page, sign);
+                }
+            }
+
+            document.save(outPdf);
+        } finally {
+            if (document != null) {
+                document.close();
+            }
+        }
+    }
+
+    private static void savePageInkAnnotations(PDDocument document, PDPage page, List<PdfInkStroke> strokes) throws IOException {
+
+        for (int i = 0; i < strokes.size(); i++) {
+            PdfInkStroke stroke = strokes.get(i);
+            if (stroke == null || !stroke.isValid()) continue;
+
+            PDAnnotationMarkup annot = new PDAnnotationMarkup();
+            annot.getCOSObject().setName(COSName.SUBTYPE, PDAnnotationMarkup.SUB_TYPE_INK);
+            annot.setPrinted(true);
+            annot.setConstantOpacity(1.0f);
+
+            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
+            border.setWidth(stroke.strokeWidthPdf);
+            annot.setBorderStyle(border);
+            annot.setColor(toPdColor(stroke.colorArgb));
+
+            RectF pdfBounds = stroke.getPdfBounds();
+
+            PDRectangle rect = new PDRectangle();
+            rect.setLowerLeftX(pdfBounds.left);
+            rect.setLowerLeftY(pdfBounds.bottom);
+            rect.setUpperRightX(pdfBounds.right);
+            rect.setUpperRightY(pdfBounds.top);
+            annot.setRectangle(rect);
+
+            float[][] inkList = new float[1][];
+            inkList[0] = toPdfInkPath(stroke);
+            annot.setInkList(inkList);
+
+            annot.constructAppearances(document);
+            page.getAnnotations().add(annot);
+        }
+    }
+
+    private static void savePageSignatureImage(PDDocument document, PDPage page, PdfSignatureOverlay sign) throws IOException {
+
+        RectF pdfRect = sign.pdfRect;
+        PDImageXObject imageXObject = LosslessFactory.createFromImage(document, sign.bitmap);
+
+        PDPageContentStream cs = null;
+        try {
+            cs = new PDPageContentStream(
+                    document,
+                    page,
+                    PDPageContentStream.AppendMode.APPEND,
+                    true,
+                    true
+            );
+
+            cs.drawImage(
+                    imageXObject,
+                    pdfRect.left,
+                    pdfRect.bottom,
+                    pdfRect.width(),
+                    pdfRect.height()
+            );
+        } finally {
+            if (cs != null) cs.close();
+        }
+    }
+
+    private static float[] toPdfInkPath(PdfInkStroke stroke) {
+        float[] arr = new float[stroke.pointsPdf.size() * 2];
+
+        for (int i = 0; i < stroke.pointsPdf.size(); i++) {
+            PointF p = stroke.pointsPdf.get(i);
+            arr[i * 2] = p.x;
+            arr[i * 2 + 1] = p.y;
+        }
+
+        return arr;
+    }
+
+    private static PDColor toPdColor(int colorArgb) {
+        float[] rgb = new float[] {
+                Color.red(colorArgb) / 255f,
+                Color.green(colorArgb) / 255f,
+                Color.blue(colorArgb) / 255f
+        };
+        return new PDColor(rgb, PDDeviceRGB.INSTANCE);
+    }
+}

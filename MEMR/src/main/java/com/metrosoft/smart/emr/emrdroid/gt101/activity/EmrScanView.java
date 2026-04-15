@@ -26,10 +26,15 @@ import android.widget.TextView;
 
 import com.metrosoft.smart.emr.emrdroid.gt101.R;
 import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
+import com.metrosoft.smart.emr.emrdroid.gt101.utils.Utils;
 
 import org.json.JSONException;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.net.URLEncoder;
 
 public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
     private String mXmlPatientInfo;
@@ -56,6 +61,8 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
 
     private WebView mWebView;
     private TextView mPatientInfoTextView;
+    private PdfInkSignView mPdfView; // 2026.04.15 WOOIL - PDF를 보여주기 위한 용도
+    private int mCurrentPageNo = 0; // 2026.04.15 WOOIL - PDF를 보여주기 위한 용도
 
     // 2022.03.02 동의서가 여러장인 경우 처리 10장 까지 가능함.
     private RadioGroup mPageGroup;
@@ -83,6 +90,17 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
         mPatientInfoTextView = (TextView) findViewById(R.id.patientInfoTextView);
         mWebView = (WebView) findViewById(R.id.webView);
         mWebView.setWebViewClient(new MyWebViewClient());
+
+        // 2026.04.14 WOOIL - PDF 보기용 뷰 추가
+        mPdfView = new PdfInkSignView(this);
+        mPdfView.setVisibility(View.GONE);
+        mPdfView.setMode(PdfInkSignView.MODE_NONE);
+        android.widget.LinearLayout.LayoutParams pdfParams =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT);
+
+        ((android.view.ViewGroup) mWebView.getParent()).addView(mPdfView, pdfParams);
 
         Intent intent = getIntent();
         mPid = intent.getStringExtra("pid");
@@ -328,8 +346,8 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                         // 조회중 화면이 전환되는 경우 dialog가 사라져서 오류가 발생한다.
                         // 이를 방지함.
                         try {
-                            afterGetEmrScanView();
                             mDialog.dismiss();
+                            afterGetEmrScanView();
                         } catch (Exception e) {
                             ;
                         }
@@ -343,68 +361,94 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
         String imageUrl = "";
         //
         mPatientInfoTextView.setText(mXmlPatientInfo);
-        // 2026.04.10 WOOIL - mFullUrl2 제거
-        //if ("".equals(mFullUrl2)) {
-        //    imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">";
-        //} else {
-        //    // 2번째 이미지가 있는 경우
-        //    imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">"
-        //            + "<br><br>"
-        //            + "<img width='100%' src=\"" + mFullUrl2 + "\">";
-        //}
-        if ("s".equalsIgnoreCase(mTsaStatus) == false) {
-            imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">";
+
+        boolean isPdf = isPdfUrl(mFullUrl) || isPdfPath(mFullUrl);
+
+        if (isPdf) {
+            mDialog = ProgressDialog.show(this, "", "PDF 문서 처리 중입니다.", true);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        final File pdfFile = downloadPdfToLocal(mFullUrl, "emrscan_" + mCurrentPageNo + ".pdf");
+                        mHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                try { mDialog.dismiss(); } catch (Exception ignore) {}
+                                if (!isValidPdfFile(pdfFile)) {
+                                    showSimpleDialog("다운로드된 파일이 PDF가 아닙니다.");
+                                } else {
+                                    showPdfInPdfView(pdfFile);
+                                }
+                            }
+                        });
+                    } catch (final Exception e) {
+                        mHandler.post(new Runnable() {
+                            @Override
+                            public void run() {
+                                try { mDialog.dismiss(); } catch (Exception ignore) {}
+                                showSimpleDialog("PDF 다운로드/표시 오류: " + e.getMessage());
+                            }
+                        });
+                    }
+                }
+            }).start();
         } else {
-            String stampDate = getStampDateText(mTsaDate);
-            String stampImageBase64 = getStampImageBase64();
-            String stampImgSrc = "data:image/png;base64," + stampImageBase64;
-            String imageHtml =
-                    "<div class='page-wrap'>"
-                            + "  <img class='main-img' src='" + mFullUrl + "' />"
-                            + "  <div class='stamp-wrap'>"
-                            + "    <img class='stamp-img' src='" + stampImgSrc + "' />"
-                            + "    <div class='stamp-date'>" + stampDate + "</div>"
-                            + "  </div>"
-                            + "</div>";
-            String html =
-                    "<html>"
-                            + "<head>"
-                            + "<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes' />"
-                            + "<style>"
-                            + "body { margin:0; padding:0; background:#ffffff; }"
-                            + ".page-wrap { position:relative; width:100%; }"
-                            + ".main-img { width:100%; height:auto; display:block; }"
-                            + ".stamp-wrap { position:absolute; left:10px; top:10px; width:110px; height:110px; }"
-                            + ".stamp-img { width:100%; height:100%; display:block; }"
-                            + ".stamp-date {"
-                            + "  position:absolute;"
-                            + "  left:0;"
-                            + "  top:53px;"
-                            + "  width:100%;"
-                            + "  text-align:center;"
-                            + "  font-size:14px;"
-                            + "  font-weight:bold;"
-                            + "  color:#000000;"
-                            + "}"
-                            + "</style>"
-                            + "</head>"
-                            + "<body>"
-                            + imageHtml
-                            + "</body>"
-                            + "</html>";
-            imageUrl = html;
+            if ("s".equalsIgnoreCase(mTsaStatus) == false) {
+                imageUrl = "<img width='100%' src=\"" + mFullUrl + "\">";
+            } else {
+                String stampDate = getStampDateText(mTsaDate);
+                String stampImageBase64 = getStampImageBase64();
+                String stampImgSrc = "data:image/png;base64," + stampImageBase64;
+                String imageHtml =
+                        "<div class='page-wrap'>"
+                                + "  <img class='main-img' src='" + mFullUrl + "' />"
+                                + "  <div class='stamp-wrap'>"
+                                + "    <img class='stamp-img' src='" + stampImgSrc + "' />"
+                                + "    <div class='stamp-date'>" + stampDate + "</div>"
+                                + "  </div>"
+                                + "</div>";
+                String html =
+                        "<html>"
+                                + "<head>"
+                                + "<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes' />"
+                                + "<style>"
+                                + "body { margin:0; padding:0; background:#ffffff; }"
+                                + ".page-wrap { position:relative; width:100%; }"
+                                + ".main-img { width:100%; height:auto; display:block; }"
+                                + ".stamp-wrap { position:absolute; left:10px; top:10px; width:110px; height:110px; }"
+                                + ".stamp-img { width:100%; height:100%; display:block; }"
+                                + ".stamp-date {"
+                                + "  position:absolute;"
+                                + "  left:0;"
+                                + "  top:53px;"
+                                + "  width:100%;"
+                                + "  text-align:center;"
+                                + "  font-size:14px;"
+                                + "  font-weight:bold;"
+                                + "  color:#000000;"
+                                + "}"
+                                + "</style>"
+                                + "</head>"
+                                + "<body>"
+                                + imageHtml
+                                + "</body>"
+                                + "</html>";
+                imageUrl = html;
+            }
+            mWebView.loadDataWithBaseURL(
+                    null, //"android.resource://" + getPackageName() + "/",
+                    imageUrl,
+                    "text/html",
+                    "utf-8",
+                    null
+            );
+
+            mWebView.getSettings().setSupportZoom(true);
+            mWebView.getSettings().setBuiltInZoomControls(true);
+            mWebView.getSettings().setUseWideViewPort(true);
+            mWebView.setInitialScale(BIND_AUTO_CREATE);
         }
-        mWebView.loadDataWithBaseURL(
-                null, //"android.resource://" + getPackageName() + "/",
-                imageUrl,
-                "text/html",
-                "utf-8",
-                null
-        );
-        mWebView.getSettings().setSupportZoom(true);
-        mWebView.getSettings().setBuiltInZoomControls(true);
-        mWebView.getSettings().setUseWideViewPort(true);
-        mWebView.setInitialScale(BIND_AUTO_CREATE);
         try {
             if ("signed".equalsIgnoreCase(mFrom)) {
                 // 녹음파일갯수를 버튼에 표시한다.
@@ -436,6 +480,25 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
         } catch (JSONException e) {
             // TODO Auto-generated catch block
             //e.printStackTrace();
+        }
+    }
+
+    private boolean isPdfUrl(String url) {
+        if (url == null) return false;
+        String lower = url.toLowerCase();
+        return lower.contains(".pdf");
+    }
+    private boolean isPdfPath(String path) {
+        if (path == null) return false;
+        return path.toLowerCase().endsWith(".pdf");
+    }
+
+    private String getGooglePdfViewerUrl(String pdfUrl) {
+        try {
+            return "https://docs.google.com/gview?embedded=true&url="
+                    + URLEncoder.encode(pdfUrl, "UTF-8");
+        } catch (Exception e) {
+            return pdfUrl;
         }
     }
 
@@ -642,105 +705,52 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
             return "";
         }
     }
-//	private void startPlay(){
-//		mDialog = ProgressDialog.show(EmrScanView.this, "", getString(R.string.query_wait_message), true);
-//		new Thread(new Runnable() {
-//			public void run() {
-//				String hospitalId = getHospitalId();
-//				String imagePath = mPath.replace("\\", "/");
-//				String imageUrl = "EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath + ".mp4" + "&mode=4";
-//				mFullUrl = getFullUrl(imageUrl);
-//				//String dstPath = EmrScanView.this.getFilesDir() + File.separator + "mp4" + File.separator + "emrscanview_mp4.mp4";
-//				//Utils.downFile(EmrScanView.this, mFullUrl, dstPath);
-//				Log.d("EmrDroid-Servlet",mFullUrl);
-//				
-//				mHandler.post(new Runnable() {
-//					public void run() {
-//						// 조회중 화면이 전환되는 경우 dialog가 사라져서 오류가 발생한다.
-//						// 이를 방지함.
-//						try {
-//							afterStartPlay();
-//							mDialog.dismiss();
-//						} catch (Exception e) {
-//							;
-//						}
-//					}
-//				});
-//			}
-//		}).start();
-//		
-//	}
-//	
-//	private void afterStartPlay2(){
-//		String url=mFullUrl;
-//		Intent intent = new Intent(Intent.ACTION_VIEW); 
-//        intent.setDataAndType(Uri.parse(url), "video/*");
-//        startActivity(intent);   		
-//	}
-//	
-//	private void afterStartPlay(){
-//		String mp4File = EmrScanView.this.getFilesDir() + File.separator + "mp4" + File.separator + "emrscanview_mp4.mp4";
-//		mp4File = mFullUrl;
-//		
-//		// 재생
-//		if(player!=null){
-//			player.stop();
-//			player.release();
-//			player=null;
-//		}
-//		
-//		try {
-//			player = new MediaPlayer();
-//			player.setOnCompletionListener(
-//					new OnCompletionListener(){
-//
-//						@Override
-//						public void onCompletion(MediaPlayer mp) {
-//							// TODO Auto-generated method stub
-//							stopPlay();
-//						}
-//						
-//					});
-//			player.setOnErrorListener(
-//					new OnErrorListener(){
-//
-//						@Override
-//						public boolean onError(MediaPlayer mp, int what, int extra) {
-//							// TODO Auto-generated method stub
-//							String err = "OnError occured. what = " + what + " ,extra = " + extra;
-//				            Toast.makeText(EmrScanView.this, err, Toast.LENGTH_LONG).show();
-//							return false;
-//						}
-//						
-//					});
-//			player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-//			player.setDataSource(mp4File);
-//			player.setVolume(1, 1);
-//			player.prepare();
-//			player.start();
-//		} catch (IllegalArgumentException e) {
-//			// TODO Auto-generated catch block
-//			//e.printStackTrace();
-//			Log.d("EmrDroid","error in afterPlayRecord1=" + e.getMessage());
-//		} catch (IllegalStateException e) {
-//			// TODO Auto-generated catch block
-//			//e.printStackTrace();
-//			Log.d("EmrDroid","error in afterPlayRecord2=" + e.getMessage());
-//		} catch (IOException e) {
-//			// TODO Auto-generated catch block
-//			//e.printStackTrace();
-//			Log.d("EmrDroid","error in afterPlayRecord3=" + e.getMessage());
-//		} catch (Exception e){
-//			Log.d("EmrDroid","error in afterPlayRecord4=" + e.getMessage());
-//		}
-//	}
-//	
-//	private void stopPlay(){
-//		if(player==null) return;
-//		
-//		player.stop();
-//		player.release();
-//		player=null;
-//	}
 
+    // 2026.04.15 WOOIL - PDF문서를 다운로드 하다.
+    private File downloadPdfToLocal(String url, String fileName) throws Exception {
+        String dirPath = getFilesDir().getAbsolutePath() + File.separator + "emrscan_pdf";
+        File dir = new File(dirPath);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+
+        File outFile = new File(dir, fileName);
+        Utils.downFile(this, url, outFile.getAbsolutePath());
+        return outFile;
+    }
+
+    // 2026.04.15 WOOIL - 올바른 PDF 문서인지 검사
+    private boolean isValidPdfFile(File file) {
+        FileInputStream fis = null;
+        try {
+            if (file == null || !file.exists() || file.length() < 5) return false;
+
+            fis = new FileInputStream(file);
+            byte[] buf = new byte[5];
+            int len = fis.read(buf);
+            if (len < 5) return false;
+
+            String header = new String(buf, 0, len, "ISO-8859-1");
+            return header.startsWith("%PDF-");
+        } catch (Exception e) {
+            return false;
+        } finally {
+            try {
+                if (fis != null) fis.close();
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
+    // 2026.04.15 WOOIL - PDF 문서를 표시한다.
+    private void showPdfInPdfView(File pdfFile) {
+        try {
+            mWebView.setVisibility(View.GONE);
+            mPdfView.setVisibility(View.VISIBLE);
+            mPdfView.setMode(PdfInkSignView.MODE_NONE);
+            mPdfView.openPdf(pdfFile, 0);
+        } catch (Exception e) {
+            showSimpleDialog("PDF 열기 오류: " + e.getMessage());
+        }
+    }
 }

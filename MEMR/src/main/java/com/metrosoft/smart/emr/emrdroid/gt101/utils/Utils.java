@@ -18,76 +18,40 @@ import android.util.TypedValue;
 public class Utils {
 	public static void downFile(Context context, String srcPath, String dstPath) throws Exception {
 		// http://www.androidsnippets.com/download-an-http-file-to-sdcard-with-progress-notification
-		//try {
-			// 폴더가 있는지 보고 없으면 만든다.
-			String dstDir = context.getFilesDir().getAbsolutePath();
-			makeFolder(dstDir);
-			makeFolder(dstDir + File.separator + "mp4");  // 녹음파일 다운용 폴더
-			makeFolder(dstDir + File.separator + "Form"); // 이미지동의서 다운용 폴더
-			makeFolder(dstDir + File.separator + "Sign"); // 의사 사인 다운용 폴더
+		// 폴더가 있는지 보고 없으면 만든다.
+		String dstDir = context.getFilesDir().getAbsolutePath();
+		makeFolder(dstDir);
+		makeFolder(dstDir + File.separator + "mp4");  // 녹음파일 다운용 폴더
+		makeFolder(dstDir + File.separator + "Form"); // 이미지동의서 다운용 폴더
+		makeFolder(dstDir + File.separator + "Sign"); // 의사 사인 다운용 폴더
 
-			// set download url
-			//String path=getImageFilePath(1);
 
-			URL url = new URL(srcPath);
-			
-			// create connection
-			HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-			
-			// set up some things on the connection 
-			urlConnection.setRequestMethod("GET");
-			//urlConnection.setDoOutput(true);
-			urlConnection.setDoOutput(false); // <-- 이렇게 해야 동작함.
+		URL url = new URL(srcPath);
+		HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+		urlConnection.setRequestMethod("GET");
+		urlConnection.setDoOutput(false); // <-- 이렇게 해야 동작함.
 
-			// file
-			//String saveFile = dstDir + File.separator + mPopuppicKey + File.separator + dstPath;
-			String saveFile = dstPath;
-			File file = new File(saveFile);
-			
-			// this wilee be userd to write the downloaded data into the file we created
-			FileOutputStream fos = new FileOutputStream(file);
-			OutputStream out = new BufferedOutputStream(fos);
-			
-			// this will be used in read the data from the internet
-			InputStream is = urlConnection.getInputStream();
-			
-			// this is the total size of the file
-			//int totalSize = urlConnection.getContentLength();
-			// variable to store total downloaded bytes
-			//int downloadedSize = 0;
-			
-			// create buffer...
-			byte[] buffer = new byte[1024];
-			int bufferLength = 0; // used to store a temporary size of the buffer
-			
-			// now, read through the input buffer and write the content to the file
-			while((bufferLength = is.read(buffer))>0){
-				// add the data in the buffer to the file in the file output stream
-				//fos.write(buffer, 0 ,bufferLength);
-				out.write(buffer, 0 ,bufferLength);
-				// add up the size so we know how much is download
-				//downloadedSize += bufferLength;
-				// this is where you would do something to report the progress, like the maybe
-				//updateProgress(downloadedSize, totalSize);
-			}
-			// close the output stream when done
-			//fos.close();
-			out.flush();
-			out.close();
+		int responseCode = urlConnection.getResponseCode();
+		if (responseCode != HttpURLConnection.HTTP_OK) {
+			throw new IOException("HTTP error" + responseCode);
+		}
 
-		//} catch (MalformedURLException e) {
-		//	// TODO Auto-generated catch block
-		//	//e.printStackTrace();
-		//	//Log.d("EmrDroid","error in downFile1=" + e.getMessage());
-		//} catch (IOException e) {
-		//	// TODO Auto-generated catch block
-		//	//e.printStackTrace();
-		//	//Log.d("EmrDroid","error in downFile2=" + e.getMessage());
-		//} catch (Exception e) {
-		//	// TODO Auto-generated catch block
-		//	//e.printStackTrace();
-		//	//Log.d("EmrDroid","error in downFile3=" + e.getMessage());
-		//}
+		String saveFile = dstPath;
+		File file = new File(saveFile);
+
+		FileOutputStream fos = new FileOutputStream(file);
+		OutputStream out = new BufferedOutputStream(fos);
+
+		InputStream is = urlConnection.getInputStream();
+
+		byte[] buffer = new byte[1024];
+		int bufferLength = 0; // used to store a temporary size of the buffer
+
+		while((bufferLength = is.read(buffer))>0){
+			out.write(buffer, 0 ,bufferLength);
+		}
+		out.flush();
+		out.close();
 	}
 	
 	private static void updateProgress(int downloadedSize, int totalSize){
