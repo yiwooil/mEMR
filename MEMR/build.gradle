@@ -9,6 +9,7 @@ android {
         applicationId "com.metrosoft.smart.emr.emrdroid.gt101"
         minSdkVersion 14
         targetSdkVersion 35
+        multiDexEnabled true // 2026.04.14 WOOIL - 추가
     }
 
     buildTypes {
@@ -34,4 +35,8 @@ dependencies {
     // 바코드 스캐너(예시 버전, 실제로는 프로젝트에 맞는 버전 선택)
     implementation 'com.journeyapps:zxing-android-embedded:3.6.0@aar'
     implementation 'com.google.zxing:core:3.3.0'
+    // 2026.04.13 WOOIL - 추가
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+    // 2026.04.14 WOOIL - 추가
+    implementation 'com.android.support:multidex:1.0.3'
 }

@@ -56,6 +56,8 @@ import com.metrosoft.smart.emr.emrdroid.gt101.R;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValues;
 import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.EmrSettingsUtil;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Utils;
@@ -173,6 +175,10 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private TextView mApplyDrnmLabel; // 2026.02.10 WOOIL - 사용자가 의사를 수정할 수 있게
     private EditText mApplyDrnm; // 2026.02.10 WOOIL - 사용자가 의사를 수정할 수 있게
 
+    private boolean mIsPdfConsent = false; // 2026.04.14 WOOIL - PDF용 추가
+    private ArrayList<PdfInkSignView> mPdfViewList = new ArrayList<PdfInkSignView>(); // 2026.04.14 WOOIL - PDF용 추가
+    private ArrayList<String> mPdfFilePathList = new ArrayList<String>(); // 2026.04.14 WOOIL - PDF용 추가
+
     private Thread.UncaughtExceptionHandler mDefaultUncaughtExceptionHandler;
     public Thread.UncaughtExceptionHandler getDefaultUncaughtExceptionHandler() {
         return mDefaultUncaughtExceptionHandler;
@@ -224,6 +230,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
         // 호출하는 곳에서 값을 넘지지 않았을 경우 이상 동작 방지
         if (mReSaveYn == null) mReSaveYn = "";
+
+        // 2026.04.14 WOOIL - 동의서 파일이 PDF 문서인지 담아놓는다.
+        mIsPdfConsent = isPdfConsentFile();
 
         mPageCount = 1;
         if (!"".equals(mSubPageList)) {
@@ -496,6 +505,12 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             mMyViewList.get(i).setLayoutParams(layoutParams);
             linearLayout.addView(mMyViewList.get(i), linearLayout.getChildCount() - 1);
             mMyViewList.get(i).setVisibility(View.GONE);
+            // 2026.04.14 WOOIL - PDF 문서를 처리하는 VIEW 추가
+            PdfInkSignView pdfView = new PdfInkSignView(this);
+            pdfView.setLayoutParams(layoutParams);
+            pdfView.setVisibility(View.GONE);
+            mPdfViewList.add(pdfView);
+            linearLayout.addView(pdfView, linearLayout.getChildCount() - 1);
         }
 
 
@@ -972,6 +987,11 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private String mFileName;
 
     private void saveSignImage(final String preSave) {
+        // 2026.01.14 WOOIL - PDF 동의서 처리
+        //if (mIsPdfConsent) {
+        //    savePdfConsent(preSave);
+        //    return;
+        //}
         // 사인이미지저장.
         //mDialog = ProgressDialog.show(this, "", getString(R.string.process_wait_message), true);
         showProgressDialog(getString(R.string.process_wait_message));
@@ -1003,65 +1023,79 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     int height = 0;
                     float initScale = 0;
 
-                    // ------------------------------------------------------------------------------------------------------------------------
-                    // 안드로이드 단말기에 에 사인 이미지 파일을 쓴다.
-                    // consentform_페이지번호.png(jpg)
-                    for (int pageIdx = 0; pageIdx < mPageCount; pageIdx++) {
 
-                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다①.");
+                    ArrayList<String> savedPdfList = new ArrayList<String>();
+                    if (mIsPdfConsent) {
+                        // 2026.04.14 WOOIL - 페이지별 PDF를 각각 저장
+                        for (int pageIdx = 0; pageIdx < mPageCount; pageIdx++) {
+                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지(PDF) 추출 중 입니다①.");
 
-                        String fileName = dirPath + "/consentform" + "_" + pageIdx + "." + ccfImagePostfix;
-                        mFileName = fileName; // 디버깅용.
-                        Log.d("EmrDroid", "fileName=" + fileName);
+                            PdfInkSignView pdfView = mPdfViewList.get(pageIdx);
+                            File srcPdf = new File(mPdfFilePathList.get(pageIdx));
+                            File outPdf = new File(dirPath + File.separator + "consentform_" + pageIdx + ".pdf");
 
-                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다②.");
-
-                        mMyViewList.get(pageIdx).postInvalidate();
-
-                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다③.");
-
-                        // 2021.06.03 WOOIL - 동의서가 여러 페이지인 경우 열어보지 않은 페이지의 이미지를 추출하려고 하면 오류가 발생함.
-                        //                    오류 방지용으로 getSignedBitmap에서 열어보지 않은 페이지면 별도의 작업을 함.
-                        //                    이때 width와 height가 필요하여 맨 앞페이지의 width와 height를 넘김.
-                        // 2022.04.20 WOOIL - 동의서의 두번째 페이지를 열어보지 않으면 값이 좌측상단에 표시되는 현상 수정
-                        //                    initScale을 넘김
-                        if (pageIdx == 0) {
-                            width = mMyViewList.get(pageIdx).getFrameWidth();
-                            height = mMyViewList.get(pageIdx).getFrameHeight();
-                            initScale = mMyViewList.get(pageIdx).getInitSacle();
+                            PdfInkPdfSaver.saveAllPages(ConsentForm.this, srcPdf, outPdf, pdfView);
+                            savedPdfList.add(outPdf.getAbsolutePath());
                         }
-                        Bitmap bitmap = mMyViewList.get(pageIdx).getSignedBitmap(width, height, initScale);
-                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다④.");
-                        Log.d("EmrDroid", "이미지 추출완료");
-                        if (bitmap != null) {
+                    } else {
+                        // 안드로이드 단말기에 에 사인 이미지 파일을 쓴다.
+                        for (int pageIdx = 0; pageIdx < mPageCount; pageIdx++) {
 
-                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다⑤.");
+                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다①.");
 
-                            FileOutputStream output = new FileOutputStream(fileName);
-                            if ("jpg".equalsIgnoreCase(ccfImagePostfix)) {
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
-                            } else {
-                                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
+                            String fileName = dirPath + File.separator + "consentform" + "_" + pageIdx + "." + ccfImagePostfix;
+                            mFileName = fileName; // 디버깅용.
+                            Log.d("EmrDroid", "fileName=" + fileName);
+
+                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다②.");
+
+                            mMyViewList.get(pageIdx).postInvalidate();
+
+                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다③.");
+
+                            // 2021.06.03 WOOIL - 동의서가 여러 페이지인 경우 열어보지 않은 페이지의 이미지를 추출하려고 하면 오류가 발생함.
+                            //                    오류 방지용으로 getSignedBitmap에서 열어보지 않은 페이지면 별도의 작업을 함.
+                            //                    이때 width와 height가 필요하여 맨 앞페이지의 width와 height를 넘김.
+                            // 2022.04.20 WOOIL - 동의서의 두번째 페이지를 열어보지 않으면 값이 좌측상단에 표시되는 현상 수정
+                            //                    initScale을 넘김
+                            if (pageIdx == 0) {
+                                width = mMyViewList.get(pageIdx).getFrameWidth();
+                                height = mMyViewList.get(pageIdx).getFrameHeight();
+                                initScale = mMyViewList.get(pageIdx).getInitSacle();
                             }
-                            output.flush();
-                            output.close();
+                            Bitmap bitmap = mMyViewList.get(pageIdx).getSignedBitmap(width, height, initScale);
+                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다④.");
+                            Log.d("EmrDroid", "이미지 추출완료");
+                            if (bitmap != null) {
 
-                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다⑥.");
+                                setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다⑤.");
 
-                            if (!bitmap.isRecycled()) {
-                                bitmap.recycle();
+                                FileOutputStream output = new FileOutputStream(fileName);
+                                if ("jpg".equalsIgnoreCase(ccfImagePostfix)) {
+                                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output);
+                                } else {
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
+                                }
+                                output.flush();
+                                output.close();
+
+                                setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다⑥.");
+
+                                if (!bitmap.isRecycled()) {
+                                    bitmap.recycle();
+                                }
+
+                                setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다⑦.");
+
+                                // 2024.08.01 WOOIL - 저장까지 다 성공한 후에 하도록 이동
+                                //mMyViewList.get(pageIdx).recycleAll(); // 2021.08.20 WOOIL - 메모리 해제
                             }
 
-                            setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 이미지 추출 중 입니다⑦.");
+                            Log.d("EmrDroid", "fileName 단말기에 저장 완료");
 
-                            // 2024.08.01 WOOIL - 저장까지 다 성공한 후에 하도록 이동
-                            //mMyViewList.get(pageIdx).recycleAll(); // 2021.08.20 WOOIL - 메모리 해제
                         }
-
-                        Log.d("EmrDroid", "fileName 단말기에 저장 완료");
-
                     }
-                    // finished - 안드로이드에 사인 이미지 파일을 쓴다.
+                    // finished - 안드로이드에 사인 이미지(or pdf) 파일을 쓴다.
 
                     setDialogMessage("파일명을 정하는 중 입니다.");
 
@@ -1136,15 +1170,20 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         while (true) {
                             // 저장폴더 : 년도(YYYY)/일자(YYYYMMDD)/환자ID/입원외래구분
                             // 2026.02.02 WOOIL - sysdt -> applyExdt, systm앞에 sysdt 추가
-                            uploadFileName[pageIdx] = applyExdt.substring(0, 4) + "\\"
-                                    + applyExdt + "\\"
-                                    + mPid + "\\"
-                                    + inoutdiv + "\\"
-                                    + "ZZ01" + "_" + sysdt + "_" + systm + "_" + ipAddress + "_" + Integer.toString((++imageSeq) + 1000).substring(1);
+                            uploadFileName[pageIdx] =
+                                    applyExdt.substring(0, 4) + "\\" +
+                                    applyExdt + "\\" +
+                                    mPid + "\\" +
+                                    inoutdiv + "\\" +
+                                    "ZZ01" + "_" + sysdt + "_" + systm + "_" + ipAddress + "_" + Integer.toString((++imageSeq) + 1000).substring(1);
                             if ("Y".equalsIgnoreCase(preSave)) {
                                 uploadFileName[pageIdx] += "_" + preSave.trim();
                             }
-                            uploadFileName[pageIdx] += "." + ccfImagePostfix;
+                            if (mIsPdfConsent) {
+                                uploadFileName[pageIdx] += ".pdf";
+                            } else {
+                                uploadFileName[pageIdx] += "." + ccfImagePostfix;
+                            }
                             // 서버에 파일이 있는지 확인한다. 반환값이 Y이면 파일이 있는 것임. seq를 하나 증가시켜 다시 확인한다.
                             // 2026.02.04 WOOIL - 이곳에는 reSaveYn을 넘기지 않아도 됨.
                             param.clear();
@@ -1153,7 +1192,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             param.put("userid", userId);
                             param.put("pid", mPid);
                             param.put("file_name", uploadFileName[pageIdx].replace("\\", "/"));
-                            param.put("file_type", getCcfImagePostfix());//"png");
+                            param.put("file_type", mIsPdfConsent ? "pdf" : getCcfImagePostfix()); // 2026.04.14 WOOIL - PDF추가
                             param.put("pre_save", preSave);
 
                             mSaveXml = getXml("CertificatePaperServlet", param);
@@ -1180,10 +1219,20 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 파일을 서버에 저장하는 중 입니다.");
 
                         // 단말기에 저장된 이미지 파일명(페이지별)
-                        String fileName = dirPath + "/consentform" + "_" + pageIdx + "." + ccfImagePostfix;
+                        String fileName = "";
+                        if (mIsPdfConsent) {
+                            fileName = dirPath + "/consentform" + "_" + pageIdx + ".pdf"; // 2026.04.14 WOOIL - PDF 추가
+                        } else {
+                            fileName = dirPath + "/consentform" + "_" + pageIdx + "." + ccfImagePostfix;
+                        }
 
                         // 서버에 파일을 올린다.
-                        String addParam = "file_type=png&pre_save=" + preSave + "&hospital_id=" + hospitalId;
+                        String addParam ="";
+                        if (mIsPdfConsent) {
+                            addParam = "file_type=pdf&pre_save=" + preSave + "&hospital_id=" + hospitalId;
+                        } else {
+                            addParam = "file_type=png&pre_save=" + preSave + "&hospital_id=" + hospitalId;
+                        }
                         mSaveXml = uploadPngFile(fileName, uploadFileName[pageIdx].replace("\\", "/"), addParam);
                         if (mSaveXml == null) mSaveXml = "파일 업로드 중 오류가 발생했습니다.";
                         if (!mSaveXml.startsWith("success")) {
@@ -1570,8 +1619,10 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     }
 
     private void getCertificatePaper() {
-        if (mCcfFileName.toLowerCase().endsWith(".png") || mCcfFileName.toLowerCase().endsWith(".jpg") || mCcfFileName.toLowerCase().endsWith(".gif")) {
+        if (isImageConsentFile()) {
             getCertificatePaperImage();
+        } else if (isPdfConsentFile()) {
+            getCertificatePaperPdf();
         } else {
             //mDialog = ProgressDialog.show(this, "", getString(R.string.query_wait_message), true);
             showProgressDialog(getString(R.string.query_wait_message));
@@ -1823,14 +1874,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
                         mErrPos = "12";
                         setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(5)");
-
-                        // 2023.07.18 WOOIL - 동의서를 보여주는 곳에서 임시자장할때 같이 저장한 사진도 보여주므로 이 작업이 필요없다.
-                        // 2023.07.17 WOOIL - 임시저장시 같이 저장한 사진이 있으면 이를 보이게 처리한다.
-                        //                    첫 페이지에서만 동작한다.
-                        //if(i == 0){
-                        //    loadPresavedPic(hospitalId);
-                        //    loadPresavedMP4(hospitalId);
-                        //}
                     }
                     mErrPos = "13";
                 } catch (Exception ex) {
@@ -1868,70 +1911,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         }).start();
     }
 
-    /*
-    private void loadPresavedPic(String hospitalId) {
-        try {
-            String url = "ChartServlet" +
-                    "?hospitalid=" + hospitalId +
-                    "&pid=" + mPid +
-                    "&bededt=" + mBededt +
-                    "&exdt=" + mExdt +
-                    "&seq=" + mSeq +
-                    "&mode=7";
-            String xml = getXml(url);
-            ResultSetHelper rs = new ResultSetHelper(xml, false);
-            setPicButtonText("[" + rs.getReturnCode() + "]");
-            if(1==1) return;
-            if (rs.getReturnCode() < 0) {
-                //showSimpleDialog(rs.getReturnDesc());
-            } else if (rs.getReturnCode() == 0) {
-                //showSimpleDialog(R.string.no_data_message);
-            } else {
-                String ccfImageFormat = EmrSettingsUtil.getCcfImageFormat(mActivity);
-                String ccfImagePostfix = "";
-                if ("jpg".equalsIgnoreCase(ccfImageFormat)) {
-                    ccfImagePostfix = "jpg";
-                } else {
-                    ccfImagePostfix = "png";
-                }
-
-                for (int i = 0; i < rs.getRecordCount(); i++) {
-
-                    if (m_mapPic == null) m_mapPic = new HashMap<Integer, Object>();
-
-                    Integer idx = m_mapPic.size() + 1;
-                    m_mapPic.put(idx, "");
-
-                    String title = rs.getString(i, "title");
-                    String picPath = rs.getString(i, "pic_path");
-                    String exdt = rs.getString(i, "exdt");
-                    String seq = rs.getString(i, "seq");
-                    String picIdx = rs.getString(i, "pic_idx");
-
-                    String picUrl = "EmrScanServlet?hospitalid=" + hospitalId + "&path=" + picPath + "&mode=5";
-                    String picUrlFull = getFullUrl(picUrl);
-                    String dirPath = getFilesDir().getAbsolutePath();
-                    String picFileName = dirPath + "/consentpic_" + idx + "." + ccfImagePostfix;
-
-                    Utils.downFile(mActivity, picUrlFull, picFileName);
-                }
-                setPicButtonText("촬영");
-            }
-
-        }catch(Exception ex){}
-
-    }
-    */
-    /*
-    private void loadPresavedMP4(String hospitalId) {
-        try{
-            setRecordButtonText("녹음");
-        }catch(Exception ex){}
-
-    }
-    */
-
-
     boolean mIsOnPageFinished = false;
 
     private void afterGetCertificatePaper() {
@@ -1940,28 +1919,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             super.showToastText(super.getXmlErrorMessage());
             return;
         }
-        // input 에 포커스가 가면 깜빡이는 현상이 있었는데
-        // certificate_paper2.xml의
-        // <WebView
-        // android:id="@+id/certificate_view"
-        // android:layout_width="fill_parent"
-        // android:layout_height="fill_parent"
-        // android:background="#FF000000" <-- 이부분을 추가하여 없앴음.
-        // />
-        // webView.loadData(xml, "text/html", "utf-8"); // <-- 한글 깨짐
         mIsOnPageFinished = false;
         seePageFinished();
-		//mActivity.runOnUiThread(new Runnable(){
-        //
-		//	@Override
-		//	public void run() {
-		//		// TODO Auto-generated method stub
-		//		mWebView.loadDataWithBaseURL(null, mXml, "text/html", "utf-8", null); // <-- 제대로나옴.
-		//		mWebView.setVisibility(View.VISIBLE);
-		//	}
-		//
-		//});
-        //
         mWebView.loadDataWithBaseURL(null, mXml, "text/html", "utf-8", null); // <-- 제대로 나옴.
         mWebView.setVisibility(View.VISIBLE);
     }
@@ -1971,18 +1930,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         String dstDir = mActivity.getFilesDir().getAbsolutePath();
         String pathName = dstDir + File.separator + "Form" + File.separator + "presaved_" + index;//mCcfFileName;
 
-        //BitmapFactory.Options options = new BitmapFactory.Options();
-        //options.inSampleSize=2; // 임시자장된 파일의 크기가 커서 이후 진행이 안되는 경우가 있음.
-        //Bitmap bitmap = BitmapFactory.decodeFile(pathName,options);
-
         Bitmap bitmap = BitmapFactory.decodeFile(pathName);
 
-        // 사인중비
-		/*
-		Drawable d = new BitmapDrawable(bitmap);
-		mMyView.setVisibility(View.VISIBLE);
-		mMyView.clear(bitmap,null);//mMyView.clear(d, null);
-		*/
         mMyViewList.get(index).setVisibility(View.VISIBLE);
         mMyViewList.get(index).clear(bitmap, null);
         mRadioPen.setChecked(true);
@@ -1992,26 +1941,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         if (index != 0) {
             mMyViewList.get(index).setVisibility(View.GONE);
         }
-
-
-//		// 오류발생
-//		if (super.getXmlError() == true) {
-//			super.showToastText(super.getXmlErrorMessage());
-//			return;
-//		}
-//		// webView.loadData(xml, "text/html", "utf-8"); // <-- 한글 깨짐
-//		mIsOnPageFinished=false;
-//		seePageFinished();
-//		String imageUrl="<img width='100%' src=\"" + mFullUrl + "\">";
-//		mWebView.loadDataWithBaseURL(null,imageUrl, "text/html", "utf-8", null);
-//		//mWebView.getSettings().setSupportZoom(true);
-//		//mWebView.getSettings().setBuiltInZoomControls(true);
-//		//mWebView.getSettings().setUseWideViewPort(true);
-//		//mWebView.setInitialScale(BIND_AUTO_CREATE);
-//		//mWebView.loadDataWithBaseURL(null, mXml, "text/html", "utf-8", null); // <--
-//																				// 제대로
-//																				// 나옴.
-//		mWebView.setVisibility(View.VISIBLE);
     }
 
     private void afterGetCertificatePaperImage(int index) {
@@ -2066,52 +1995,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         }
     }
 
-    /*
-     * private void saveScreenshot(final Picture pic, final String fileName){ //
-     * 소스코드를 나중에 참고하기 위하여 남겨둔다. new Thread(new Runnable() {
-     *
-     * @Override public void run() {
-     *
-     * Bitmap bmp = Bitmap.createBitmap(200,200, Bitmap.Config.ARGB_8888);
-     * Bitmap roundBmp = Bitmap.createBitmap(200,200, Bitmap.Config.ARGB_8888);
-     *
-     * Canvas canvas = new Canvas(bmp); pic.draw(canvas);
-     *
-     * Canvas rCanvas = new Canvas(roundBmp);
-     *
-     * //for round image final int color = 0xff424242; final Paint paint = new
-     * Paint(); final Rect rect = new Rect(0,0,200, 200); final RectF rectF =
-     * new RectF(rect); final float roundPx = 20;
-     *
-     * paint.setAntiAlias(true); paint.setColor(color);
-     * rCanvas.drawARGB(0,0,0,0); rCanvas .drawRoundRect(rectF, roundPx,
-     * roundPx, paint);
-     *
-     * paint.setXfermode(new
-     * PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)); rCanvas
-     * .drawBitmap(bmp, rect, rect, paint);
-     *
-     * try { Log.d("EmrDroid","fileName="+fileName); FileOutputStream output =
-     * new FileOutputStream(fileName);
-     *
-     * roundBmp.compress(Bitmap.CompressFormat.PNG, 90, output);
-     *
-     * output.flush(); output.close(); Log.d("EmrDroid","Save success"); //
-     * Images.Media.insertImage(getContentResolver(), bmp, fileName, null); }
-     * catch (IOException e) { // TODO Auto-generated catch block
-     * e.printStackTrace(); Log.d("EmrDroid","Save error" +
-     * e.getMessage().toString()); } } }).start(); }
-     */
     private Picture mPic; // 동의서 이미지
-//	private Paint mPaint; // 사인하는 펜
-
-//	public class MyView extends DrawableImageView{
-//
-//		public MyView(Context c) {
-//			super(c);
-//		}
-//	
-//	}
 
     public class MyView extends FingerPaintView3 {
 
@@ -2119,40 +2003,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         public MyView(Context c, int penWidth, int eraserWidth, int penColor, Paint penPaint, Paint clearPaint, Paint cursorPaint, Paint textPaint, String userId) {
             super(c, penWidth, eraserWidth, penColor, penPaint, clearPaint, cursorPaint, textPaint, userId);
         }
-		/*
-		public void clear(Bitmap b){
-			Bitmap bitmap = textOnBitmap(b, 50, 50, "테스트", 13, Color.BLACK);
-			Drawable d = new BitmapDrawable(bitmap);
-			super.clear(d);
-		}
-		*/
-		/*
-		@Override
-		protected void onDraw(Canvas canvas){
-			if(isFirstPaperImage){
-				int textSize = 11;
-				int textColor = Color.BLACK;
-				
-			    Paint paint = new Paint();
-			    //paint.setTextSize(textSize);
-			    paint.setColor(textColor);
-			    paint.setTextAlign(Paint.Align.LEFT);
-			    paint.setStyle(Style.FILL);
-			    //int width = (int) (paint.measureText(text) + 0.5f); // round
-			    //float baseline = (int) (-paint.ascent() + 0.5f); // ascent() is negative
-			    //int height = (int) (baseline + paint.descent() + 0.5f);
-			    //Bitmap image = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-			    //Canvas canvas = new Canvas(bitmap);
-			    int x,y;
-			    x=50;
-			    y=50;
-			    canvas.drawText("테스트", x, y, paint); // not work
-			    isFirstPaperImage=false;
-			}else{
-				super.onDraw(canvas);
-			}
-		}
-		*/
     }
 
     @Override
@@ -2217,10 +2067,20 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
     private void setPageShow(int pageIndex) {
         // 동의서 페이지 번호를 클릭한 경우
-        mMyViewList.get(pageIndex).setVisibility(View.VISIBLE);
         for (int i = 0; i < mPageCount; i++) {
-            if (i != pageIndex) {
-                mMyViewList.get(i).setVisibility(View.GONE);
+            mMyViewList.get(i).setVisibility(View.GONE);
+        }
+        for (int i = 0; i < mPdfViewList.size(); i++) {
+            mPdfViewList.get(i).setVisibility(View.GONE);
+        }
+
+        if (mIsPdfConsent){
+            if (pageIndex >= 0 && pageIndex < mPdfViewList.size()) {
+                mPdfViewList.get(pageIndex).setVisibility(View.VISIBLE);
+            }
+        } else {
+            if (pageIndex >= 0 && pageIndex < mMyViewList.size()) {
+                mMyViewList.get(pageIndex).setVisibility(View.VISIBLE);
             }
         }
     }
@@ -2842,139 +2702,237 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         setDialogMessage(msg);
     }
 
-//	public class MyView extends View {
-//
-//		private Bitmap mBitmap;
-//		private Canvas mCanvas;
-//		private Path mPath;
-//		private Paint mBitmapPaint;
-//
-//		public MyView(Context c) {
-//			super(c);
-//
-//			DisplayMetrics metrics = new DisplayMetrics();
-//			getWindowManager().getDefaultDisplay().getMetrics(metrics);
-//			// Bitmap bm = BitmapFactory.decodeResource(getResources(),
-//			// R.drawable.icon);
-//			// mBGBitmap = Bitmap.createScaledBitmap(bm, metrics.widthPixels,
-//			// metrics.heightPixels, true);
-//			//mBitmap = Bitmap.createBitmap(metrics.widthPixels, metrics.heightPixels, Bitmap.Config.ARGB_8888);
-//			/*
-//			setImageBitmap(Bitmap.createBitmap(metrics.widthPixels, metrics.heightPixels, Bitmap.Config.ARGB_8888));
-//			mCanvas = new Canvas(mBitmap);
-//			mPath = new Path();
-//			mBitmapPaint = new Paint(Paint.DITHER_FLAG);
-//			*/
-//			this.init(Bitmap.createBitmap(metrics.widthPixels, metrics.heightPixels, Bitmap.Config.ARGB_8888));
-//		}
-//
-//		public void clear() {
-//			// DisplayMetrics metrics = new DisplayMetrics();
-//			// getWindowManager().getDefaultDisplay().getMetrics(metrics);
-//			// mBitmap =
-//			// Bitmap.createBitmap(metrics.widthPixels,metrics.heightPixels,
-//			// Bitmap.Config.ARGB_8888);
-//			//mBitmap = pictureDrawable2Bitmap(new PictureDrawable(mPic));
-//			/*
-//			setImageBitmap(pictureDrawable2Bitmap(new PictureDrawable(mPic)));
-//			mCanvas = new Canvas(mBitmap);
-//			mPath = new Path();
-//			mBitmapPaint = new Paint(Paint.DITHER_FLAG);
-//			this.invalidate(); // onDraw를 호출함.
-//			*/
-//			this.init(pictureDrawable2Bitmap(new PictureDrawable(mPic)));
-//			this.invalidate(); // onDraw를 호출함.
-//		}
-//		
-//		private void init(Bitmap bitmap){
-//			//super.setImageBitmap(bitmap);
-//			mBitmap = bitmap;
-//			mCanvas = new Canvas(mBitmap);
-//			mPath = new Path();
-//			mBitmapPaint = new Paint(Paint.DITHER_FLAG);
-//		}
-//
-//		public Bitmap getBitmap() {
-//			return mBitmap;
-//		}
-//
-//		@Override
-//		protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-//			super.onSizeChanged(w, h, oldw, oldh);
-//		}
-//
-//		@Override
-//		protected void onDraw(Canvas canvas) {
-//			canvas.drawColor(R.color.background);
-//			// canvas.drawBitmap(mBGBitmap, 0, 0, null);
-//			// canvas.drawPicture(mPic);
-//			canvas.drawBitmap(mBitmap, 0, 0, mBitmapPaint);
-//
-//			canvas.drawPath(mPath, mPaint);
-//		}
-//
-//		private float mX, mY;
-//		private static final float TOUCH_TOLERANCE = 4;
-//
-//		private void touch_start(float x, float y) {
-//			if (mSignStatus == 1) {
-//				mPath.reset();
-//				mPath.moveTo(x, y);
-//				mX = x;
-//				mY = y;
-//			}
-//		}
-//
-//		private void touch_move(float x, float y) {
-//			if (mSignStatus == 1) {
-//				float dx = Math.abs(x - mX);
-//				float dy = Math.abs(y - mY);
-//				if (dx >= TOUCH_TOLERANCE || dy >= TOUCH_TOLERANCE) {
-//					mPath.quadTo(mX, mY, (x + mX) / 2, (y + mY) / 2);
-//					mX = x;
-//					mY = y;
-//				}
-//			}
-//		}
-//
-//		private void touch_up() {
-//			if (mSignStatus == 1) {
-//				mPath.lineTo(mX, mY);
-//				// commit the path to our offscreen
-//				mCanvas.drawPath(mPath, mPaint);
-//				// kill this so we don't double draw
-//				mPath.reset();
-//			}
-//		}
-//		
-//		@Override
-//		public boolean onTouchEvent(MotionEvent event) {
-//			if (mSignStatus == 1) {
-//				// 사용자가 사인하는 중
-//				float x = event.getX();
-//				float y = event.getY();
-//
-//				int action=event.getAction();
-//				switch (action) {
-//				case MotionEvent.ACTION_DOWN:
-//					touch_start(x, y);
-//					invalidate();
-//					break;
-//				case MotionEvent.ACTION_MOVE:
-//					touch_move(x, y);
-//					invalidate();
-//					break;
-//				case MotionEvent.ACTION_UP:
-//					touch_up();
-//					invalidate();
-//					break;
-//				}
-//			}else{
-//				//super.onTouchEvent(event);
-//			}
-//			return true;
-//		}
-//		
-//	}
+    // 2026.04.14 WOOIL - PDF문서인지?
+    private boolean isPdfConsentFile() {
+        return mCcfFileName != null && mCcfFileName.toLowerCase().endsWith(".pdf");
+    }
 
+    // 2026.04.14 WOOIL - 이미지 문서인지?
+    private boolean isImageConsentFile() {
+        if (mCcfFileName == null) return false;
+        String name = mCcfFileName.toLowerCase();
+        return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".gif") || name.endsWith(".jpeg");
+    }
+
+    // 2026.04.14 WOOIL - PDF 동의서 처리
+    private void getCertificatePaperPdf() {
+        mErrPos = "0";
+        mErrMsg = "";
+        showProgressDialog(getString(R.string.query_wait_message));
+
+        new Thread(new Runnable() {
+            public void run() {
+                String hospitalId = getHospitalId();
+                String userId = getUserId();
+
+                try {
+                    mPdfFilePathList.clear();
+
+                    for (int i = 0; i < mPageCount; i++) {
+                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다(PDF)...(1)");
+
+                        String ccfId = mCcfId;
+                        if (i > 0) {
+                            String pageList[] = mSubPageList.split(";");
+                            ccfId = pageList[i - 1];
+                        }
+
+                        // PDF에서도 환자/의사/기본값 XML은 기존처럼 받아둘 수 있음
+                        String url = "CertificatePaperServlet"
+                                + "?hospitalid=" + hospitalId
+                                + "&userid=" + userId
+                                + "&ccfid=" + ccfId
+                                + "&mode=11"
+                                + "&pid=" + mPid
+                                + "&bededt=" + mBededt
+                                + "&bdiv=" + mBdiv
+                                + "&dptcd=" + mDptcd
+                                + "&bedodt=" + mBedodt
+                                + "&u01_pk_yn=" + mU01PkYn
+                                + "&u01_opdt=" + mU01Opdt
+                                + "&u01_dptcd=" + mU01Dptcd
+                                + "&u01_opseq=" + mU01Opseq
+                                + "&u01_seq=" + mU01Seq
+                                + "&dong_exdt=" + mDongExdt;
+
+                        mCcfValueXml[i] = getXml(url);
+
+                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다(PDF)...(2)");
+
+                        // 원본 PDF 다운로드
+                        String pdfUrl = "";
+                        pdfUrl += "EmrScanServlet";
+                        pdfUrl += "?hospitalid=" + hospitalId;
+                        pdfUrl += "&userid=" + userId;
+                        pdfUrl += "&ccfid=" + ccfId;
+                        pdfUrl += "&mode=8";
+
+                        mFullUrl = getFullUrl(pdfUrl);
+
+                        String dstDir = mActivity.getFilesDir().getAbsolutePath() + File.separator + "Form";
+                        File formDir = new File(dstDir);
+                        if (!formDir.exists()) {
+                            formDir.mkdirs();
+                        }
+
+                        String dstPath = dstDir + File.separator + "pdfccf_" + i + ".pdf";
+                        Utils.downFile(mActivity, mFullUrl, dstPath);
+                        mPdfFilePathList.add(dstPath);
+                    }
+
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                afterGetCertificatePaperPdf();
+                                mDialog.dismiss();
+                            } catch (Exception e) {
+                                try {
+                                    mDialog.dismiss();
+                                } catch (Exception ignore) {}
+                                showSimpleDialog(e.getMessage());
+                            }
+                        }
+                    });
+
+                } catch (final Exception ex) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                mDialog.dismiss();
+                            } catch (Exception ignore) {}
+                            showSimpleDialog(ex.getMessage());
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
+
+    // 2026.04.14 WOOIL - PDF 동의서 처리
+    private void afterGetCertificatePaperPdf() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            showSimpleDialog("PDF 동의서는 Android 5.0 이상에서만 지원됩니다.");
+            return;
+        }
+
+        try {
+            // 기존 이미지 뷰는 숨김
+            for (int i = 0; i < mMyViewList.size(); i++) {
+                ((View) mMyViewList.get(i)).setVisibility(View.GONE);
+            }
+
+            // webview도 숨김
+            mWebView.setVisibility(View.GONE);
+
+            // pdf view 열기
+            for (int i = 0; i < mPdfViewList.size(); i++) {
+                PdfInkSignView pdfView = mPdfViewList.get(i);
+                pdfView.setVisibility(View.GONE);
+
+                if (i < mPdfFilePathList.size()) {
+                    File pdfFile = new File(mPdfFilePathList.get(i));
+                    pdfView.openPdf(pdfFile, 0);
+                }
+            }
+
+            if (mPdfViewList.size() > 0) {
+                mPdfViewList.get(0).setVisibility(View.VISIBLE);
+            }
+
+            mRadioPen.setChecked(true);
+            applyCurrentDrawModeToPdfViews();
+        } catch (Exception ex) {
+            showSimpleDialog(ex.getMessage());
+        }
+    }
+
+    // 2026.04.14 WOOIL - PDF 동의서 처리
+    private void applyCurrentDrawModeToPdfViews() {
+        int checkedId = mPenGroup.getCheckedRadioButtonId();
+
+        for (int i = 0; i < mPdfViewList.size(); i++) {
+            PdfInkSignView pdfView = mPdfViewList.get(i);
+
+            if (checkedId == R.id.radio_pen) {
+                pdfView.setMode(PdfInkSignView.MODE_PEN);
+            } else if (checkedId == R.id.radio_eraser) {
+                pdfView.setMode(PdfInkSignView.MODE_ERASER);
+            } else {
+                pdfView.setMode(PdfInkSignView.MODE_NONE);
+            }
+
+            // 현재 spinner 값 반영
+            int penWidth = mPenWidthSpinner.getSelectedItemPosition() + 1;
+            int eraserWidth = mEraserWidthSpinner.getSelectedItemPosition() + 1;
+
+            pdfView.setPenWidthPx(penWidth * 2.0f);
+            pdfView.setEraserHitPx(eraserWidth * 15.0f);
+
+            int color = Color.BLACK;
+            int colorIndex = mPenColorSpinner.getSelectedItemPosition();
+            if (colorIndex == 1) color = Color.BLUE;
+            else if (colorIndex == 2) color = Color.RED;
+
+            pdfView.setPenColor(color);
+        }
+    }
+
+    // 2026.04.14 WOOIL - PDF 동의서 저장처리
+    private void savePdfConsent(final String preSave) {
+        showProgressDialog(getString(R.string.process_wait_message));
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String dirPath = getFilesDir().getAbsolutePath();
+                    File dir = new File(dirPath);
+                    if (!dir.exists()) {
+                        dir.mkdirs();
+                    }
+
+                    // 페이지별 PDF를 각각 저장
+                    ArrayList<String> savedPdfList = new ArrayList<String>();
+
+                    for (int i = 0; i < mPdfViewList.size(); i++) {
+                        setDialogMessage((i + 1) + "/" + mPdfViewList.size() + " PDF 저장 중입니다.");
+
+                        PdfInkSignView pdfView = mPdfViewList.get(i);
+                        File srcPdf = new File(mPdfFilePathList.get(i));
+                        File outPdf = new File(dirPath + File.separator + "consentform_" + i + ".pdf");
+
+                        PdfInkPdfSaver.saveAllPages(ConsentForm.this, srcPdf, outPdf, pdfView);
+                        savedPdfList.add(outPdf.getAbsolutePath());
+                    }
+
+                    // TODO:
+                    // 여기 아래는 서버 저장부에 맞게 별도 처리 필요
+                    // 현재 기존 로직은 png/jpg 업로드 기준일 가능성이 큼
+
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                mDialog.dismiss();
+                            } catch (Exception ignore) {}
+                            Toast.makeText(mActivity, "PDF 저장이 완료되었습니다.", Toast.LENGTH_SHORT).show();
+                        }
+                    });
+
+                } catch (final Exception ex) {
+                    handler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                mDialog.dismiss();
+                            } catch (Exception ignore) {}
+                            showSimpleDialog(ex.getMessage());
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
 }
