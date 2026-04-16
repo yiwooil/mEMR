@@ -99,7 +99,6 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                 new android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT);
-
         ((android.view.ViewGroup) mWebView.getParent()).addView(mPdfView, pdfParams);
 
         Intent intent = getIntent();

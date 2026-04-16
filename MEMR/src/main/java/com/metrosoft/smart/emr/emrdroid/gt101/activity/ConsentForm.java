@@ -1621,10 +1621,10 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     }
 
     private void getCertificatePaper() {
-        if (isImageConsentFile()) {
-            getCertificatePaperImage();
-        } else if (isPdfConsentFile()) {
-            getCertificatePaperPdf();
+        if (isImageConsentFile() || isPdfConsentFile()) {
+            getCertificatePaperImage(isPdfConsentFile());
+        //} else if (isPdfConsentFile()) {
+        //    getCertificatePaperPdf();
         } else {
             //mDialog = ProgressDialog.show(this, "", getString(R.string.query_wait_message), true);
             showProgressDialog(getString(R.string.query_wait_message));
@@ -1661,10 +1661,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
     private String mErrPos = "0";
     private String mErrMsg = "";
-    private void getCertificatePaperImage() {
+    private void getCertificatePaperImage(final boolean isPdf) {
         mErrPos = "0";
         mErrMsg = "";
-        //mDialog = ProgressDialog.show(this, "", getString(R.string.query_wait_message), true);
         showProgressDialog(getString(R.string.query_wait_message));
         new Thread(new Runnable() {
             public void run() {
@@ -1672,17 +1671,19 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 String userId = getUserId();
 
                 try {
-                    for (int i = 0; i < mPageCount; i++) {
+                    mPdfFilePathList.clear(); // 2026.04.16 WOOIL - PDF용이지만...
 
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(1)");
+                    for (int pageIdx = 0; pageIdx < mPageCount; pageIdx++) {
+
+                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(1)" + (isPdf ? "(pdf)" : ""));
 
                         String ccfId = mCcfId;
-                        if (i > 0) {
+                        if (pageIdx > 0) {
                             String pageList[] = mSubPageList.split(";");
-                            ccfId = pageList[i - 1];
+                            ccfId = pageList[pageIdx - 1];
                         }
 
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(2)");
+                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(2)" + (isPdf ? "(pdf)" : ""));
 
                         // 동의서에 출력될 환자정보
                         String url = "CertificatePaperServlet"
@@ -1702,12 +1703,12 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                    + "&u01_seq=" + mU01Seq // 2023.03.07 WOOIL
                                    + "&dong_exdt=" + mDongExdt // 2024.08.29 WOOIL - 비급여 동의서 내용을 일자별로 가져오게 하기 위함.(입원만)
                                    + "";
-                        mCcfValueXml[i] = getXml(url);
+                        mCcfValueXml[pageIdx] = getXml(url);
 
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(3)");
+                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(3)" + (isPdf ? "(pdf)" : ""));
 
                         // 2022.04.27 WOOIL - 의사 사인
-                        ResultSetHelper rsHelper = new ResultSetHelper(mCcfValueXml[i], false);
+                        ResultSetHelper rsHelper = new ResultSetHelper(mCcfValueXml[pageIdx], false);
                         int rsCount = rsHelper.getRecordCount();
                         for (int ii = 0; ii < rsCount; ii++) {
                             String ccfValue = rsHelper.getString(ii, "ccf_value");
@@ -1740,21 +1741,23 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             }
                         }
 
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(4)");
+                        setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(4)" + (isPdf ? "(pdf)" : ""));
 
-                        // 동의서이미지
+                        // 동의서이미지(or PDF)
                         String imageUrl = "";
                         imageUrl += "EmrScanServlet";
                         imageUrl += "?hospitalid=" + hospitalId;
                         imageUrl += "&userid=" + userId;
                         imageUrl += "&ccfid=" + ccfId;
                         imageUrl += "&mode=8";
+
                         mFullUrl = getFullUrl(imageUrl);
 
                         String dstDir = mActivity.getFilesDir().getAbsolutePath();
-                        String dstPath = dstDir + File.separator + "Form" + File.separator + "imageccf_" + i;//mCcfFileName;
+                        String dstPath = dstDir + File.separator + "Form" + File.separator + "imageccf_" + pageIdx;
 
                         Utils.downFile(mActivity, mFullUrl, dstPath);
+                        mPdfFilePathList.add(dstPath); // 2026.04.16 WOOIL - 추가
                         Log.d("EmrDroid-Servlet", mFullUrl);
 
                     }
@@ -1773,8 +1776,14 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         // 이를 방지함.
                         try {
                             if ("".equalsIgnoreCase(mErrMsg)) {
-                                for (int i = 0; i < mPageCount; i++) {
-                                    afterGetCertificatePaperImage(i);
+                                if (isPdf) {
+                                    // pdf문서 form-field에 값을 뿌리는 함수
+                                    applyPdfFormFieldsToDownloadedPages();
+                                    afterGetCertificatePaperPdf();
+                                } else {
+                                    for (int i = 0; i < mPageCount; i++) {
+                                        afterGetCertificatePaperImage(i);
+                                    }
                                 }
                             }else{
                                 showSimpleDialog(mErrMsg);
@@ -2714,104 +2723,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         if (mCcfFileName == null) return false;
         String name = mCcfFileName.toLowerCase();
         return name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".gif") || name.endsWith(".jpeg");
-    }
-
-    // 2026.04.14 WOOIL - PDF 동의서 처리
-    private void getCertificatePaperPdf() {
-        mErrPos = "0";
-        mErrMsg = "";
-        showProgressDialog(getString(R.string.query_wait_message));
-
-        new Thread(new Runnable() {
-            public void run() {
-                String hospitalId = getHospitalId();
-                String userId = getUserId();
-
-                try {
-                    mPdfFilePathList.clear();
-
-                    for (int i = 0; i < mPageCount; i++) {
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다(PDF)...(1)");
-
-                        String ccfId = mCcfId;
-                        if (i > 0) {
-                            String pageList[] = mSubPageList.split(";");
-                            ccfId = pageList[i - 1];
-                        }
-
-                        // PDF에서도 환자/의사/기본값 XML은 기존처럼 받아둘 수 있음
-                        String url = "CertificatePaperServlet"
-                                + "?hospitalid=" + hospitalId
-                                + "&userid=" + userId
-                                + "&ccfid=" + ccfId
-                                + "&mode=11"
-                                + "&pid=" + mPid
-                                + "&bededt=" + mBededt
-                                + "&bdiv=" + mBdiv
-                                + "&dptcd=" + mDptcd
-                                + "&bedodt=" + mBedodt
-                                + "&u01_pk_yn=" + mU01PkYn
-                                + "&u01_opdt=" + mU01Opdt
-                                + "&u01_dptcd=" + mU01Dptcd
-                                + "&u01_opseq=" + mU01Opseq
-                                + "&u01_seq=" + mU01Seq
-                                + "&dong_exdt=" + mDongExdt;
-
-                        mCcfValueXml[i] = getXml(url);
-
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다(PDF)...(2)");
-
-                        // 원본 PDF 다운로드
-                        String pdfUrl = "";
-                        pdfUrl += "EmrScanServlet";
-                        pdfUrl += "?hospitalid=" + hospitalId;
-                        pdfUrl += "&userid=" + userId;
-                        pdfUrl += "&ccfid=" + ccfId;
-                        pdfUrl += "&mode=8";
-
-                        mFullUrl = getFullUrl(pdfUrl);
-
-                        String dstDir = mActivity.getFilesDir().getAbsolutePath() + File.separator + "Form";
-                        File formDir = new File(dstDir);
-                        if (!formDir.exists()) {
-                            formDir.mkdirs();
-                        }
-
-                        String dstPath = dstDir + File.separator + "pdfccf_" + i + ".pdf";
-                        Utils.downFile(mActivity, mFullUrl, dstPath);
-                        mPdfFilePathList.add(dstPath);
-                    }
-
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                // pdf문서 form-field에 값을 뿌리는 함수
-                                applyPdfFormFieldsToDownloadedPages();
-                                afterGetCertificatePaperPdf();
-                                mDialog.dismiss();
-                            } catch (Exception e) {
-                                try {
-                                    mDialog.dismiss();
-                                } catch (Exception ignore) {}
-                                showSimpleDialog(e.getMessage());
-                            }
-                        }
-                    });
-
-                } catch (final Exception ex) {
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                mDialog.dismiss();
-                            } catch (Exception ignore) {}
-                            showSimpleDialog(ex.getMessage());
-                        }
-                    });
-                }
-            }
-        }).start();
     }
 
     // 2026.04.14 WOOIL - PDF 동의서 처리
