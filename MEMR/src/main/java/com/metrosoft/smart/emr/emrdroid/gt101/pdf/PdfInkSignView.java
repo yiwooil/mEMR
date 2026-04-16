@@ -14,7 +14,9 @@ import android.graphics.pdf.PdfRenderer;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.support.v7.widget.AppCompatImageView;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +31,12 @@ import java.util.List;
  * - 앱에서 직접 그린 펜 Stroke
  * - 앱에서 올린 서명 Bitmap
  * 을 함께 표시하는 View
+ *
+ * 추가 기능:
+ * - FingerPaintView3 방식의 두 손가락 확대/축소
+ * - 두 손가락 같은 방향 이동 시 pan
+ * - 확대된 상태에서 MODE_NONE일 때 한 손가락 pan
+ * - 더블탭으로 원래 배율 복귀
  *
  * 주의:
  * - PdfRenderer는 Android 5.0(Lollipop) 이상에서만 동작한다.
@@ -101,6 +109,40 @@ public class PdfInkSignView extends AppCompatImageView {
     private float lastTouchX;
     private float lastTouchY;
 
+    // 더블탭 감지용
+    private GestureDetector mGestureDetector;
+
+    // 현재 배율
+    private float mScaleFactor = 1.0f;
+
+    // 최소/최대 배율
+    private float mMinScaleFactor = 1.0f;
+    // FingerPaintView3와 유사하게 2배까지로 맞춤
+    private float mMaxScaleFactor = 2.0f;
+
+    // 현재 화면 이동값
+    private float mTranslateX = 0f;
+    private float mTranslateY = 0f;
+
+    // 한 손가락 pan 시작 좌표
+    private float mLastPanX = 0f;
+    private float mLastPanY = 0f;
+
+    // 두 손가락 pan 중심점
+    private float mLastMultiTouchCenterX = 0f;
+    private float mLastMultiTouchCenterY = 0f;
+
+    // FingerPaintView3 방식 확대/축소용 이전 두 손가락 거리
+    private float mPrevDistance = 0f;
+
+    // 상태 플래그
+    private boolean mIsScaling = false;
+    private boolean mIsPanning = false;
+    private boolean mIsTwoFingerPanning = false;
+
+    // 드래그 시작 임계값
+    private int mTouchSlop = 0;
+
     public PdfInkSignView(Context context) {
         super(context);
         init();
@@ -125,6 +167,22 @@ public class PdfInkSignView extends AppCompatImageView {
         formTextPaint.setStyle(Paint.Style.FILL);
         formTextPaint.setTextAlign(Paint.Align.LEFT);
         formTextPaint.setTypeface(Typeface.DEFAULT);
+
+        mTouchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+
+        mGestureDetector = new GestureDetector(getContext(),
+                new GestureDetector.SimpleOnGestureListener() {
+                    @Override
+                    public boolean onDoubleTap(MotionEvent e) {
+                        resetZoom();
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onDown(MotionEvent e) {
+                        return true;
+                    }
+                });
     }
 
     public void setMode(int mode) {
@@ -182,6 +240,31 @@ public class PdfInkSignView extends AppCompatImageView {
         return mPageSignatures;
     }
 
+    public float getScaleFactor() {
+        return mScaleFactor;
+    }
+
+    /**
+     * 확대/축소/이동 상태를 초기화한다.
+     */
+    public void resetZoom() {
+        mScaleFactor = 1.0f;
+        mTranslateX = 0f;
+        mTranslateY = 0f;
+
+        mIsScaling = false;
+        mIsPanning = false;
+        mIsTwoFingerPanning = false;
+
+        mLastPanX = 0f;
+        mLastPanY = 0f;
+        mLastMultiTouchCenterX = 0f;
+        mLastMultiTouchCenterY = 0f;
+        mPrevDistance = 0f;
+
+        invalidate();
+    }
+
     /**
      * 전체 overlay를 모두 삭제한다.
      */
@@ -236,6 +319,8 @@ public class PdfInkSignView extends AppCompatImageView {
         if (pageIndex >= pdfRenderer.getPageCount()) pageIndex = pdfRenderer.getPageCount() - 1;
 
         currentPageIndex = pageIndex;
+
+        resetZoom();
         openRendererPage(currentPageIndex);
         restorePageOverlay(currentPageIndex);
 
@@ -289,6 +374,8 @@ public class PdfInkSignView extends AppCompatImageView {
         if (pageIndex >= pdfRenderer.getPageCount()) pageIndex = pdfRenderer.getPageCount() - 1;
 
         currentPageIndex = pageIndex;
+
+        resetZoom();
         openRendererPage(currentPageIndex);
         restorePageOverlay(currentPageIndex);
 
@@ -494,6 +581,7 @@ public class PdfInkSignView extends AppCompatImageView {
 
     /**
      * PDF 페이지가 View 안에서 실제로 그려지는 사각형 영역을 계산한다.
+     * 기본 맞춤 크기에 확대/축소 및 이동을 반영한다.
      */
     public RectF getPageDrawRect() {
         if (pageBitmap == null) {
@@ -505,13 +593,61 @@ public class PdfInkSignView extends AppCompatImageView {
         float bmpW = pageBitmap.getWidth();
         float bmpH = pageBitmap.getHeight();
 
-        float scale = Math.min(viewW / bmpW, viewH / bmpH);
+        float baseScale = Math.min(viewW / bmpW, viewH / bmpH);
+        float scale = baseScale * mScaleFactor;
+
         float drawW = bmpW * scale;
         float drawH = bmpH * scale;
-        float left = (viewW - drawW) / 2f;
-        float top = (viewH - drawH) / 2f;
+
+        float left = (viewW - drawW) / 2f + mTranslateX;
+        float top = (viewH - drawH) / 2f + mTranslateY;
 
         return new RectF(left, top, left + drawW, top + drawH);
+    }
+
+    /**
+     * 확대 상태에서 화면 이동값이 너무 벗어나지 않도록 제한한다.
+     */
+    private void clampTranslation() {
+        if (pageBitmap == null) return;
+
+        float viewW = getWidth();
+        float viewH = getHeight();
+        float bmpW = pageBitmap.getWidth();
+        float bmpH = pageBitmap.getHeight();
+
+        float baseScale = Math.min(viewW / bmpW, viewH / bmpH);
+        float scale = baseScale * mScaleFactor;
+
+        float drawW = bmpW * scale;
+        float drawH = bmpH * scale;
+
+        float minX;
+        float maxX;
+        float minY;
+        float maxY;
+
+        if (drawW <= viewW) {
+            minX = maxX = 0f;
+        } else {
+            float overX = (drawW - viewW) / 2f;
+            minX = -overX;
+            maxX = overX;
+        }
+
+        if (drawH <= viewH) {
+            minY = maxY = 0f;
+        } else {
+            float overY = (drawH - viewH) / 2f;
+            minY = -overY;
+            maxY = overY;
+        }
+
+        if (mTranslateX < minX) mTranslateX = minX;
+        if (mTranslateX > maxX) mTranslateX = maxX;
+
+        if (mTranslateY < minY) mTranslateY = minY;
+        if (mTranslateY > maxY) mTranslateY = maxY;
     }
 
     /**
@@ -574,6 +710,39 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     /**
+     * 두 손가락 중심점을 구한다.
+     */
+    private PointF getMultiTouchCenter(MotionEvent event) {
+        if (event == null || event.getPointerCount() < 2) {
+            return new PointF(0f, 0f);
+        }
+
+        float x0 = event.getX(0);
+        float y0 = event.getY(0);
+        float x1 = event.getX(1);
+        float y1 = event.getY(1);
+
+        return new PointF((x0 + x1) / 2f, (y0 + y1) / 2f);
+    }
+
+    /**
+     * 두 점 사이 거리 계산
+     */
+    private float distance(float x0, float x1, float y0, float y1) {
+        float x = x0 - x1;
+        float y = y0 - y1;
+        return (float) Math.sqrt(x * x + y * y);
+    }
+
+    /**
+     * View 대각선 길이
+     * FingerPaintView3의 dispDistance()와 같은 역할
+     */
+    private float dispDistance() {
+        return (float) Math.sqrt(getWidth() * getWidth() + getHeight() * getHeight());
+    }
+
+    /**
      * 화면 사각형을 PDF 사각형으로 변환한다.
      */
     public RectF screenRectToPdfRect(RectF screenRect) {
@@ -623,8 +792,136 @@ public class PdfInkSignView extends AppCompatImageView {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        // 더블탭 감지
+        if (mGestureDetector != null) {
+            mGestureDetector.onTouchEvent(event);
+        }
+
+        // 두 손가락 이상이면 FingerPaintView3 방식 확대/축소 + 2-finger pan 처리
+        if (event.getPointerCount() >= 2) {
+            PointF center = getMultiTouchCenter(event);
+
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_POINTER_DOWN:
+                case MotionEvent.ACTION_DOWN: {
+                    mLastMultiTouchCenterX = center.x;
+                    mLastMultiTouchCenterY = center.y;
+                    mIsTwoFingerPanning = false;
+                    mIsScaling = true;
+
+                    mPrevDistance = distance(
+                            event.getX(0), event.getX(1),
+                            event.getY(0), event.getY(1)
+                    );
+
+                    // 펜으로 그리던 중이면 종료
+                    if (currentStroke != null) {
+                        currentStroke = null;
+                        invalidate();
+                    }
+                    return true;
+                }
+
+                case MotionEvent.ACTION_MOVE: {
+                    // 1) FingerPaintView3와 동일한 확대/축소 계산
+                    float dist = distance(
+                            event.getX(0), event.getX(1),
+                            event.getY(0), event.getY(1)
+                    );
+
+                    float scale = (dist - mPrevDistance) / dispDistance();
+                    mPrevDistance = dist;
+                    scale += 1f;
+                    scale = scale * scale;
+
+                    float oldScale = mScaleFactor;
+                    float newScale = mScaleFactor * scale;
+
+                    if (newScale < mMinScaleFactor) newScale = mMinScaleFactor;
+                    if (newScale > mMaxScaleFactor) newScale = mMaxScaleFactor;
+
+                    // 확대 기준점은 두 손가락 중심
+                    float focusX = center.x;
+                    float focusY = center.y;
+
+                    if (oldScale > 0f) {
+                        float ratio = newScale / oldScale;
+                        mTranslateX = focusX - (focusX - mTranslateX) * ratio;
+                        mTranslateY = focusY - (focusY - mTranslateY) * ratio;
+                    }
+
+                    mScaleFactor = newScale;
+
+                    // 2) 두 손가락 같은 방향 이동 시 pan
+                    float dx = center.x - mLastMultiTouchCenterX;
+                    float dy = center.y - mLastMultiTouchCenterY;
+
+                    if (Math.abs(dx) > 0.5f || Math.abs(dy) > 0.5f) {
+                        mIsTwoFingerPanning = true;
+                        mTranslateX += dx;
+                        mTranslateY += dy;
+                    }
+
+                    mLastMultiTouchCenterX = center.x;
+                    mLastMultiTouchCenterY = center.y;
+
+                    clampTranslation();
+                    invalidate();
+                    return true;
+                }
+
+                case MotionEvent.ACTION_POINTER_UP:
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    mIsTwoFingerPanning = false;
+                    mIsScaling = false;
+                    mPrevDistance = 0f;
+                    return true;
+            }
+
+            return true;
+        }
+
         float x = event.getX();
         float y = event.getY();
+
+        // 확대된 상태에서 MODE_NONE이면 한 손가락 pan 허용
+        if (mScaleFactor > 1.0f && mode == MODE_NONE) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    mLastPanX = x;
+                    mLastPanY = y;
+                    mIsPanning = false;
+                    return true;
+
+                case MotionEvent.ACTION_MOVE: {
+                    float dx = x - mLastPanX;
+                    float dy = y - mLastPanY;
+
+                    if (!mIsPanning) {
+                        if (Math.abs(dx) > mTouchSlop || Math.abs(dy) > mTouchSlop) {
+                            mIsPanning = true;
+                        }
+                    }
+
+                    if (mIsPanning) {
+                        mTranslateX += dx;
+                        mTranslateY += dy;
+                        clampTranslation();
+                        invalidate();
+                    }
+
+                    mLastPanX = x;
+                    mLastPanY = y;
+                    return true;
+                }
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    mIsPanning = false;
+                    return true;
+            }
+        }
 
         switch (mode) {
             case MODE_PEN:
@@ -825,6 +1122,8 @@ public class PdfInkSignView extends AppCompatImageView {
         mDebugTextList.clear();
 
         mCurrentPdfFile = null;
+
+        resetZoom();
     }
 
     /**
@@ -873,25 +1172,12 @@ public class PdfInkSignView extends AppCompatImageView {
 
     /**
      * PDF 내부 AcroForm field 1개를 화면에 다시 그린다.
-     *
-     * 지원 표시:
-     * - text / combo / listbox : 텍스트
-     * - checkbox              : 사각형 + 체크(X)
-     * - radio                 : 원 + 선택 점
-     * - button                : 버튼 테두리 + 라벨
-     * - signature             : 서명 영역 표시
-     *
-     * 전제:
-     * - PdfRenderedFormField.type 값이 들어 있어야 가장 정확히 동작한다.
-     * - type 값이 없으면 기본 text로 처리한다.
      */
     private void drawRenderedFormField(Canvas canvas, PdfRenderedFormField field) {
         if (field == null || !field.isValid()) return;
 
-        // PDF 좌표 -> 화면 좌표 변환
         RectF screenRect = pdfRectToScreenRect(field.pdfRect);
 
-        // 폰트 크기를 PDF 기준 -> 화면 기준으로 변환
         float textSizePx = pdfWidthToScreenWidth(field.fontSizePdf);
         if (textSizePx < 12f) textSizePx = 12f;
 
@@ -911,13 +1197,11 @@ public class PdfInkSignView extends AppCompatImageView {
         float x = screenRect.left + 2f;
         float y = screenRect.bottom - 2f;
 
-        // 디버그용 외곽선
         Paint debugPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         debugPaint.setStyle(Paint.Style.STROKE);
         debugPaint.setStrokeWidth(2f);
         debugPaint.setColor(Color.GREEN);
 
-        // 체크박스/라디오/버튼 등에 사용할 공용 도형 Paint
         Paint shapePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shapePaint.setColor(field.colorArgb);
         shapePaint.setStyle(Paint.Style.STROKE);
@@ -928,15 +1212,12 @@ public class PdfInkSignView extends AppCompatImageView {
                 || "listbox".equalsIgnoreCase(type)
                 || "choice".equalsIgnoreCase(type)) {
 
-            // 텍스트 계열 필드는 기존처럼 문자열 표시
             canvas.drawText(safe(field.value), x, y, formTextPaint);
 
         } else if ("checkbox".equalsIgnoreCase(type)) {
 
-            // 체크박스: 사각형 테두리
             canvas.drawRect(screenRect, shapePaint);
 
-            // 값이 true/yes/on이면 체크 표시
             String value = safe(field.value);
             if ("true".equalsIgnoreCase(value)
                     || "yes".equalsIgnoreCase(value)
@@ -949,14 +1230,12 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("radio".equalsIgnoreCase(type)) {
 
-            // 라디오버튼: 원형 테두리
             float cx = screenRect.centerX();
             float cy = screenRect.centerY();
             float radius = Math.min(screenRect.width(), screenRect.height()) / 2f;
 
             canvas.drawCircle(cx, cy, radius, shapePaint);
 
-            // 값이 비어있지 않으면 선택된 것으로 보고 안쪽 점 표시
             if (!"".equals(safe(field.value))) {
                 Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
                 fillPaint.setStyle(Paint.Style.FILL);
@@ -966,7 +1245,6 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("button".equalsIgnoreCase(type)) {
 
-            // 버튼: 사각형 테두리 + 값 또는 이름 출력
             canvas.drawRect(screenRect, shapePaint);
 
             String text = safe(field.value);
@@ -977,7 +1255,6 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("signature".equalsIgnoreCase(type)) {
 
-            // 서명 필드: 사각형 테두리 + SIGN 표시
             canvas.drawRect(screenRect, shapePaint);
 
             String text = safe(field.value);
@@ -988,11 +1265,9 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else {
 
-            // 알 수 없는 타입은 일단 값만 출력
             canvas.drawText(safe(field.value), x, y, formTextPaint);
         }
 
-        // 디버그용 외곽선 표시
         canvas.drawRect(screenRect, debugPaint);
     }
 
