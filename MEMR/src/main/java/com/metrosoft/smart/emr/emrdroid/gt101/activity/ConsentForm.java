@@ -56,6 +56,7 @@ import com.metrosoft.smart.emr.emrdroid.gt101.R;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValues;
 import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormRuntimeWriter;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
@@ -81,6 +82,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -2784,6 +2786,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         @Override
                         public void run() {
                             try {
+                                // pdf문서 form-field에 값을 뿌리는 함수
+                                applyPdfFormFieldsToDownloadedPages();
                                 afterGetCertificatePaperPdf();
                                 mDialog.dismiss();
                             } catch (Exception e) {
@@ -2934,5 +2938,115 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 }
             }
         }).start();
+    }
+
+    // 2026.04.15 WOOIL - NULL 방지
+    private String nvl(String s) {
+        return s == null ? "" : s;
+    }
+
+    private String mapCcfFieldToPdfField(String ccfField) {
+        ccfField = nvl(ccfField).trim();
+
+        if ("".equals(ccfField)) return "";
+
+        // PDF 폼필드명이 기존 CCF field명과 같으면 그대로 사용
+        // 예: "drnm", "drnm_eng", "gdrlcid", "sdrlcid" 등
+        //if ("drnm".equalsIgnoreCase(ccfField)) return "drnm";
+
+        return ccfField;
+    }
+
+    private Map<String, String> buildPdfFieldValues(int pageIndex) {
+        Map<String, String> values = new HashMap<String, String>();
+
+        try {
+            if (pageIndex < 0 || pageIndex >= mCcfValueXml.length) {
+                return values;
+            }
+
+            String xml = mCcfValueXml[pageIndex];
+            if ("".equals(nvl(xml))) {
+                return values;
+            }
+
+            // 출력할 인적자료
+            CcfValues ccfValues = new CcfValues();
+            ResultSetHelper rsHelper = new ResultSetHelper(mCcfValueXml[pageIndex], false);
+            int rsCount = rsHelper.getRecordCount();
+            for (int i = 0; i < rsCount; i++) {
+                String ccfField = rsHelper.getString(i, "ccf_field");
+                String ccfX = rsHelper.getString(i, "ccf_x");
+                String ccfY = rsHelper.getString(i, "ccf_y");
+                String ccfH = rsHelper.getString(i, "ccf_h");
+                String ccfW = rsHelper.getString(i, "ccf_w");
+                String ccfAutoFit = rsHelper.getString(i, "ccf_auto_fit");
+                float x = Utils.toFloat(ccfX);
+                float y = Utils.toFloat(ccfY);
+                float h = Utils.toFloat(ccfH);
+                float w = Utils.toFloat(ccfW);
+                boolean autoFit = Utils.toBoolean(ccfAutoFit);
+                String ccfValue = rsHelper.getString(i, "ccf_value");
+                ccfValues.addCcfValue(ccfField, x, y, w, h, autoFit, ccfValue);
+            }
+
+            int count = ccfValues.getCount();
+            for (int i = 0; i < count; i++) {
+                String ccfField = nvl(ccfValues.getField(i)).trim();
+                String value = nvl(ccfValues.getValue(i));
+
+                if ("".equals(ccfField)) continue;
+
+                String pdfField = mapCcfFieldToPdfField(ccfField);
+                if ("".equals(pdfField)) continue;
+
+                values.put(pdfField, value);
+            }
+
+            // 의사명 UI에서 바뀐 값을 우선 반영하고 싶으면 여기서 덮어쓴다.
+            if (mApplyDrnm != null) {
+                String drnm = nvl(mApplyDrnm.getText().toString()).trim();
+                if (!"".equals(drnm)) {
+                    values.put("drnm", drnm);
+                }
+            }
+
+        } catch (Exception e) {
+            Log.e("EmrDroid", "buildPdfFieldValues error: " + e.getMessage());
+        }
+
+        return values;
+    }
+
+    private void applyPdfFormFieldsToDownloadedPages() throws Exception {
+        if (mPdfFilePathList == null || mPdfFilePathList.size() <= 0) return;
+
+        for (int i = 0; i < mPdfFilePathList.size(); i++) {
+            String srcPath = mPdfFilePathList.get(i);
+            if ("".equals(nvl(srcPath))) continue;
+
+            File srcPdf = new File(srcPath);
+            if (!srcPdf.exists()) continue;
+
+            Map<String, String> values = buildPdfFieldValues(i);
+
+            // 값이 하나도 없으면 건너뜀
+            if (values == null || values.size() == 0) continue;
+
+            File outPdf = new File(srcPdf.getParent(), "filled_" + srcPdf.getName());
+
+            // 현재 단계에서는 텍스트 필드만 채우고, flatten은 하지 않는 쪽이 좋습니다.
+            PdfFormRuntimeWriter.fillOnly(
+                    this,
+                    srcPdf, // 원본 PDF
+                    outPdf, // 결과 PDF
+                    values, // 필드명과 값
+                    null,   // 사인(signatures)
+                    false   // 필드값 수정 못하게 고정 여부
+            );
+
+            mPdfFilePathList.set(i, outPdf.getAbsolutePath());
+
+        }
     }
 }
