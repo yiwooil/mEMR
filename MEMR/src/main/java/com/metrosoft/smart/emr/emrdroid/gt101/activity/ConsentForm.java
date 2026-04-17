@@ -515,6 +515,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             linearLayout.addView(pdfView, linearLayout.getChildCount() - 1);
         }
 
+        // 2026.04.16 WOOIL -
+        applyCurrentToolSettingsToPdfViews();
 
         // 확대축소용 뷰 추가
 		/*
@@ -1797,6 +1799,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     }
 
     private void getPreSavedCertificatePaper() {
+        final boolean isPdf = isPdfConsentFile();
+
         mErrPos = "0";
         mErrMsg = "";
         //mDialog = ProgressDialog.show(this, "", getString(R.string.query_wait_message), true);
@@ -1808,10 +1812,12 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 String userId = getUserId();
 
                 try {
+                    mPdfFilePathList.clear();
+
                     mErrPos = "1";
                     for (int i = 0; i < mPageCount; i++) {
                         mErrPos = "2";
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(1)");
+                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(1)" + (isPdf ? "(pdf)" : ""));
 
                         // 임시저장
                         mErrPos = "3";
@@ -1827,7 +1833,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                 sSeq = seqList[i - 1];
                             }
 
-                            setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(2)");
+                            setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(2)" + (isPdf ? "(pdf)" : ""));
 
                             // 임시 저장된 동의서 정보
                             mErrPos = "5";
@@ -1861,7 +1867,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         }
 
                         mErrPos = "8";
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(3)");
+                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(3)" + (isPdf ? "(pdf)" : ""));
 
                         mErrPos = "9";
                         String imageUrl = "";
@@ -1878,13 +1884,15 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         String dstDir = mActivity.getFilesDir().getAbsolutePath();
                         String dstPath = dstDir + File.separator + "Form" + File.separator + "presaved_" + i;
 
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(4)");
+                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(4)" + (isPdf ? "(pdf)" : ""));
 
                         mErrPos = "11";
                         Utils.downFile(mActivity, mFullUrl, dstPath);
 
+                        mPdfFilePathList.add(dstPath);
+
                         mErrPos = "12";
-                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(5)");
+                        setDialogMessage((i + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(5)" + (isPdf ? "(pdf)" : ""));
                     }
                     mErrPos = "13";
                 } catch (Exception ex) {
@@ -1906,8 +1914,14 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         // 이를 방지함.
                         try {
                             if ("".equalsIgnoreCase(mErrMsg)) {
-                                for (int i = 0; i < mPageCount; i++) {
-                                    afterPreSavedCertificatePaper(i);
+                                if (isPdf) {
+                                    // pdf문서 form-field에 값을 뿌리는 함수
+                                    //applyPdfFormFieldsToDownloadedPages();
+                                    afterGetCertificatePaperPdf();
+                                } else {
+                                    for (int i = 0; i < mPageCount; i++) {
+                                        afterPreSavedCertificatePaper(i);
+                                    }
                                 }
                             }else{
                                 showSimpleDialog(mErrMsg);
@@ -2025,12 +2039,14 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             for (int i = 0; i < mPageCount; i++) {
                 mMyViewList.get(i).setPenMode(MyView.MODE_PEN);
             }
+            applyCurrentToolSettingsToPdfViews();
         } else if (checkedId == R.id.radio_eraser) {
             // 지우개
             //모든 페이지에 동일하게 적용
             for (int i = 0; i < mPageCount; i++) {
                 mMyViewList.get(i).setPenMode(MyView.MODE_ERASER);
             }
+            applyCurrentToolSettingsToPdfViews();
         } else if (checkedId == R.id.radio_none) {
             // 확대축소
 			/*
@@ -2446,6 +2462,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             //    mMyViewList.get(i).setPenColor(penColorValue);
             //}
         }
+        applyCurrentToolSettingsToPdfViews();
     }
 
     @Override
@@ -2957,7 +2974,47 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             );
 
             mPdfFilePathList.set(i, outPdf.getAbsolutePath());
+        }
+    }
 
+    // 2026.04.16 WOOIL - 현재 UI의 펜/지우개/두께/색상을 PDF 뷰에 즉시 반영
+    private void applyCurrentToolSettingsToPdfViews() {
+        if (!mIsPdfConsent) return;
+        if (mPdfViewList == null || mPdfViewList.size() <= 0) return;
+
+        int checkedId = mPenGroup.getCheckedRadioButtonId();
+
+        int penWidth = mPenWidthSpinner.getSelectedItemPosition() + 1;
+        int eraserWidth = mEraserWidthSpinner.getSelectedItemPosition() + 1;
+
+        int color = Color.BLACK;
+        int colorIndex = mPenColorSpinner.getSelectedItemPosition();
+        if (colorIndex == 1) {
+            color = Color.BLUE;
+        } else if (colorIndex == 2) {
+            color = Color.rgb(255, 50, 50);   // FingerPaintView3와 맞춤
+        }
+
+        for (int i = 0; i < mPdfViewList.size(); i++) {
+            PdfInkSignView pdfView = mPdfViewList.get(i);
+            if (pdfView == null) continue;
+
+            // 모드 반영
+            if (checkedId == R.id.radio_pen) {
+                pdfView.setMode(PdfInkSignView.MODE_PEN);
+            } else if (checkedId == R.id.radio_eraser) {
+                pdfView.setMode(PdfInkSignView.MODE_ERASER);
+            } else {
+                pdfView.setMode(PdfInkSignView.MODE_NONE);
+            }
+
+            // 두께 / 색상 반영
+            pdfView.setPenWidthPx(penWidth * 2.0f);
+            pdfView.setEraserHitPx(eraserWidth * 15.0f);
+            pdfView.setPenColor(color);
+
+            // 바로 다시 그리기
+            pdfView.invalidate();
         }
     }
 }
