@@ -62,6 +62,7 @@ import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormRuntimeWriter;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormTextFieldSpec;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfRenderedFormField;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.EmrSettingsUtil;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Utils;
@@ -151,7 +152,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private RadioGroup mPenGroup;
     private RadioButton mRadioPen;
     private RadioButton mRadioEraser;
-    private RadioButton mRadioNone;
+    private RadioButton mRadioEdit;
     private Button mUndoSignButton;
     private Spinner mPenWidthSpinner;
     private ArrayList<String> penWidthList = new ArrayList<String>();
@@ -263,9 +264,15 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         mPenGroup.setOnCheckedChangeListener(this);
         mRadioPen = (RadioButton) findViewById(R.id.radio_pen);
         mRadioEraser = (RadioButton) findViewById(R.id.radio_eraser);
-        mRadioNone = (RadioButton) findViewById(R.id.radio_none);
+        mRadioEdit = (RadioButton) findViewById(R.id.radio_edit);
 
-        mRadioNone.setVisibility(View.GONE);     // 확대축소 모드 숨기기(공간차지X)
+        if (mIsPdfConsent) {
+            // PDF이면 보이도록
+            mRadioEdit.setVisibility(View.VISIBLE);
+        } else {
+            // 이미지이면 안보이도록
+            mRadioEdit.setVisibility(View.GONE);
+        }
         //
         mUndoSignButton = (Button) findViewById(R.id.undo_sign_button);
 
@@ -515,6 +522,17 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             PdfInkSignView pdfView = new PdfInkSignView(this);
             pdfView.setLayoutParams(layoutParams);
             pdfView.setVisibility(View.GONE);
+            pdfView.setOnPdfFieldEditListener(new PdfInkSignView.OnPdfFieldEditListener() {
+                @Override
+                public void onPdfTextFieldClick(final PdfRenderedFormField field) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            showPdfTextFieldEditDialog(pdfView, field);
+                        }
+                    });
+                }
+            });
             mPdfViewList.add(pdfView);
             linearLayout.addView(pdfView, linearLayout.getChildCount() - 1);
         }
@@ -2051,7 +2069,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 mMyViewList.get(i).setPenMode(MyView.MODE_ERASER);
             }
             applyCurrentToolSettingsToPdfViews();
-        } else if (checkedId == R.id.radio_none) {
+        } else if (checkedId == R.id.radio_edit) {
+            applyCurrentToolSettingsToPdfViews();
             // 확대축소
 			/*
 			Bitmap bitmap = mMyView.getSignedBitmap();
@@ -2795,6 +2814,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 pdfView.setMode(PdfInkSignView.MODE_PEN);
             } else if (checkedId == R.id.radio_eraser) {
                 pdfView.setMode(PdfInkSignView.MODE_ERASER);
+            } else if (checkedId == R.id.radio_edit) {
+                pdfView.setMode(PdfInkSignView.MODE_EDIT);
             } else {
                 pdfView.setMode(PdfInkSignView.MODE_NONE);
             }
@@ -2950,6 +2971,14 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             List<PdfFormTextFieldSpec> fields = buildPdfFormFieldSpecList(i);
             Map<String, String> values = buildPdfFieldValues(i);
 
+            Map<String, String> valuesToFill = new HashMap<String, String>();
+
+            // 기존 값
+            valuesToFill.putAll(values);
+
+            // 사용자가 화면에서 수정한 값 우선 반영
+            valuesToFill.putAll(mPdfViewList.get(i).getEditedFieldValues());
+
             // 값이 하나도 없으면 건너뜀
             if (values == null || values.size() == 0) continue;
 
@@ -2971,7 +3000,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     srcPdf, // 원본 PDF
                     outPdf, // 결과 PDF
                     fields, // 생성할 필드
-                    values, // 필드명과 값
+                    valuesToFill, // 필드명과 값
                     null,   // 사인(signatures)
                     false,   // 필드값 수정 못하게 고정 여부
                     new PdfErrorListener() {
@@ -3014,7 +3043,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             } else if (checkedId == R.id.radio_eraser) {
                 pdfView.setMode(PdfInkSignView.MODE_ERASER);
             } else {
-                pdfView.setMode(PdfInkSignView.MODE_NONE);
+                pdfView.setMode(PdfInkSignView.MODE_EDIT);
             }
 
             // 두께 / 색상 반영
@@ -3074,7 +3103,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 spec.fontSize = 10;
 
                 // 타입
-                if ("".equals(ccfTypeName)) {
+                if ("".equals(ccfTypeName) || "label".equals(ccfTypeName)) {
                     spec.typeName = "text";
                     spec.readOnly = true;
                 } else {
@@ -3103,4 +3132,38 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         }
 
         return list;
-    }}
+    }
+
+    private void showPdfTextFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
+        if (pdfView == null || field == null) return;
+
+        final EditText editText = new EditText(this);
+        editText.setText(field.value == null ? "" : field.value);
+        editText.setSelection(editText.getText().length());
+
+        String title = field.name == null ? "텍스트 입력" : field.name;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(title);
+        builder.setView(editText);
+
+        builder.setPositiveButton("확인", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                String newValue = editText.getText().toString();
+                pdfView.updateFieldValue(field.name, newValue);
+                dialog.dismiss();
+            }
+        });
+
+        builder.setNegativeButton("취소", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss();
+            }
+        });
+
+        builder.show();
+    }
+
+}

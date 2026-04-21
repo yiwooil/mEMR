@@ -96,10 +96,18 @@
 				android:gravity="center"
 	            android:text="지우개" />
 	        <RadioButton
-	            android:id="@+id/radio_none"
+	            android:id="@+id/radio_edit"
 	            android:layout_width="wrap_content"
 	            android:layout_height="wrap_content"
-	            android:text="확대/축소 " />
+				android:button="@null"
+				android:background="@drawable/radio_underline_selector"
+				android:paddingLeft="12dp"
+				android:paddingRight="12dp"
+				android:paddingTop="6dp"
+				android:paddingBottom="8dp"
+				android:minHeight="40dp"
+				android:gravity="center"
+	            android:text="편집" />
 	    </RadioGroup>
         <Button
             android:id="@+id/undo_sign_button"
