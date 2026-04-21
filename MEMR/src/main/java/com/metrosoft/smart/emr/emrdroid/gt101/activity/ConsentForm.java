@@ -56,7 +56,10 @@ import com.metrosoft.smart.emr.emrdroid.gt101.R;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValues;
 import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfErrorListener;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormEditor;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormRuntimeWriter;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormTextFieldSpec;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
@@ -82,6 +85,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -2898,40 +2902,27 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 return values;
             }
 
-            // 출력할 인적자료
-            CcfValues ccfValues = new CcfValues();
-            ResultSetHelper rsHelper = new ResultSetHelper(mCcfValueXml[pageIndex], false);
+            ResultSetHelper rsHelper = new ResultSetHelper(xml, false);
             int rsCount = rsHelper.getRecordCount();
-            for (int i = 0; i < rsCount; i++) {
-                String ccfField = rsHelper.getString(i, "ccf_field");
-                String ccfX = rsHelper.getString(i, "ccf_x");
-                String ccfY = rsHelper.getString(i, "ccf_y");
-                String ccfH = rsHelper.getString(i, "ccf_h");
-                String ccfW = rsHelper.getString(i, "ccf_w");
-                String ccfAutoFit = rsHelper.getString(i, "ccf_auto_fit");
-                float x = Utils.toFloat(ccfX);
-                float y = Utils.toFloat(ccfY);
-                float h = Utils.toFloat(ccfH);
-                float w = Utils.toFloat(ccfW);
-                boolean autoFit = Utils.toBoolean(ccfAutoFit);
-                String ccfValue = rsHelper.getString(i, "ccf_value");
-                ccfValues.addCcfValue(ccfField, x, y, w, h, autoFit, ccfValue);
-            }
 
-            int count = ccfValues.getCount();
-            for (int i = 0; i < count; i++) {
-                String ccfField = nvl(ccfValues.getField(i)).trim();
-                String value = nvl(ccfValues.getValue(i));
+            for (int i = 0; i < rsCount; i++) {
+
+                String ccfField = rsHelper.getString(i, "ccf_field");
+                String value    = rsHelper.getString(i, "ccf_value");
+
+                ccfField = nvl(ccfField).trim();
+                value    = nvl(value);
 
                 if ("".equals(ccfField)) continue;
 
+                //  CCF → PDF 필드명 매핑
                 String pdfField = mapCcfFieldToPdfField(ccfField);
                 if ("".equals(pdfField)) continue;
 
                 values.put(pdfField, value);
             }
 
-            // 의사명 UI에서 바뀐 값을 우선 반영하고 싶으면 여기서 덮어쓴다.
+            // 의사명 override
             if (mApplyDrnm != null) {
                 String drnm = nvl(mApplyDrnm.getText().toString()).trim();
                 if (!"".equals(drnm)) {
@@ -2956,6 +2947,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             File srcPdf = new File(srcPath);
             if (!srcPdf.exists()) continue;
 
+            List<PdfFormTextFieldSpec> fields = buildPdfFormFieldSpecList(i);
             Map<String, String> values = buildPdfFieldValues(i);
 
             // 값이 하나도 없으면 건너뜀
@@ -2964,6 +2956,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             File outPdf = new File(srcPdf.getParent(), "filled_" + srcPdf.getName());
 
             // 현재 단계에서는 텍스트 필드만 채우고, flatten은 하지 않는 쪽이 좋습니다.
+            /*
             PdfFormRuntimeWriter.fillOnly(
                     this,
                     srcPdf, // 원본 PDF
@@ -2971,6 +2964,22 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     values, // 필드명과 값
                     null,   // 사인(signatures)
                     false   // 필드값 수정 못하게 고정 여부
+            );
+            */
+            PdfFormEditor.prepareAndFillPdf(
+                    this,
+                    srcPdf, // 원본 PDF
+                    outPdf, // 결과 PDF
+                    fields, // 생성할 필드
+                    values, // 필드명과 값
+                    null,   // 사인(signatures)
+                    false,   // 필드값 수정 못하게 고정 여부
+                    new PdfErrorListener() {
+                        @Override
+                        public void onError(String msg) {
+                            showSimpleDialogThread(msg);
+                        }
+                    }
             );
 
             mPdfFilePathList.set(i, outPdf.getAbsolutePath());
@@ -3017,4 +3026,81 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             pdfView.invalidate();
         }
     }
-}
+
+    /**
+     * PdfFormTextFieldSpec 리스트 생성
+     */
+    private List<PdfFormTextFieldSpec> buildPdfFormFieldSpecList(int pageIndex) {
+        List<PdfFormTextFieldSpec> list = new ArrayList<PdfFormTextFieldSpec>();
+
+        try {
+            if (pageIndex < 0 || pageIndex >= mCcfValueXml.length) {
+                return list;
+            }
+
+            String xml = mCcfValueXml[pageIndex];
+            if ("".equals(nvl(xml))) {
+                return list;
+            }
+
+            ResultSetHelper rsHelper = new ResultSetHelper(xml, false);
+            int rsCount = rsHelper.getRecordCount();
+
+            for (int i = 0; i < rsCount; i++) {
+                String ccfField   = nvl(rsHelper.getString(i, "ccf_field")).trim();
+                String ccfX       = nvl(rsHelper.getString(i, "ccf_x"));
+                String ccfY       = nvl(rsHelper.getString(i, "ccf_y"));
+                String ccfH       = nvl(rsHelper.getString(i, "ccf_h"));
+                String ccfW       = nvl(rsHelper.getString(i, "ccf_w"));
+                String ccfValue   = nvl(rsHelper.getString(i, "ccf_value"));
+                String ccfTypeName = nvl(rsHelper.getString(i, "ccf_type_name")).trim();
+
+                if ("".equals(ccfField)) continue;
+
+                PdfFormTextFieldSpec spec = new PdfFormTextFieldSpec();
+
+                // 필드명
+                spec.pageNo = 0; // 첫 번째 페이지로 고정
+                spec.fieldName = ccfField;
+                spec.value = ccfValue;
+
+                // 좌표 / 크기
+                spec.x = Utils.toFloat(ccfX);
+                spec.y = Utils.toFloat(ccfY);
+                spec.width = Utils.toFloat(ccfW) > 0 ? Utils.toFloat(ccfW) : 200;
+                spec.height = Utils.toFloat(ccfH) > 0 ? Utils.toFloat(ccfH) : 40;
+
+                // 스타일
+                spec.fontSize = 10;
+
+                // 타입
+                if ("".equals(ccfTypeName)) {
+                    spec.typeName = "text";
+                    spec.readOnly = true;
+                } else {
+                    spec.typeName = ccfTypeName;
+                    spec.readOnly = false;
+                }
+
+                list.add(spec);
+            }
+
+            // 의사명 UI에서 바뀐 값을 우선 반영
+            if (mApplyDrnm != null) {
+                String drnm = nvl(mApplyDrnm.getText().toString()).trim();
+                if (!"".equals(drnm)) {
+                    for (int i = 0; i < list.size(); i++) {
+                        PdfFormTextFieldSpec spec = list.get(i);
+                        if ("drnm".equalsIgnoreCase(spec.fieldName)) {
+                            spec.value = drnm;
+                        }
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            Log.e("EmrDroid", "buildPdfFormFieldSpecList error: " + e.getMessage());
+        }
+
+        return list;
+    }}
