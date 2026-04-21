@@ -37,6 +37,7 @@ import java.util.List;
  * - 두 손가락 같은 방향 이동 시 pan
  * - 확대된 상태에서 MODE_NONE일 때 한 손가락 pan
  * - 더블탭으로 원래 배율 복귀
+ * - MODE_EDIT일 때 text field / checkbox 편집
  *
  * 주의:
  * - PdfRenderer는 Android 5.0(Lollipop) 이상에서만 동작한다.
@@ -50,6 +51,7 @@ public class PdfInkSignView extends AppCompatImageView {
     public static final int MODE_PEN = 1;
     public static final int MODE_ERASER = 2;
     public static final int MODE_MOVE_SIGNATURE = 3;
+    public static final int MODE_EDIT = 4;
 
     // PDF 원본 페이지를 그릴 때 사용하는 Paint
     private final Paint pdfPaint = new Paint(Paint.DITHER_FLAG);
@@ -117,7 +119,6 @@ public class PdfInkSignView extends AppCompatImageView {
 
     // 최소/최대 배율
     private float mMinScaleFactor = 1.0f;
-    // FingerPaintView3와 유사하게 2배까지로 맞춤
     private float mMaxScaleFactor = 2.0f;
 
     // 현재 화면 이동값
@@ -132,7 +133,7 @@ public class PdfInkSignView extends AppCompatImageView {
     private float mLastMultiTouchCenterX = 0f;
     private float mLastMultiTouchCenterY = 0f;
 
-    // FingerPaintView3 방식 확대/축소용 이전 두 손가락 거리
+    // 확대/축소용 이전 두 손가락 거리
     private float mPrevDistance = 0f;
 
     // 상태 플래그
@@ -142,6 +143,18 @@ public class PdfInkSignView extends AppCompatImageView {
 
     // 드래그 시작 임계값
     private int mTouchSlop = 0;
+
+    // 사용자가 수정한 PDF form 값 보관
+    private final HashMap<String, String> mEditedFieldValues =
+            new HashMap<String, String>();
+
+    // text field 클릭 시 Activity 쪽으로 전달하기 위한 리스너
+    private OnPdfFieldEditListener mOnPdfFieldEditListener;
+
+    // 탭 판정용
+    private float mDownX = 0f;
+    private float mDownY = 0f;
+    private boolean mSingleTapCandidate = false;
 
     public PdfInkSignView(Context context) {
         super(context);
@@ -279,6 +292,7 @@ public class PdfInkSignView extends AppCompatImageView {
         mRenderedAnnotations.clear();
         mRenderedFormFields.clear();
         mDebugTextList.clear();
+        mEditedFieldValues.clear();
 
         invalidate();
     }
@@ -324,7 +338,6 @@ public class PdfInkSignView extends AppCompatImageView {
         openRendererPage(currentPageIndex);
         restorePageOverlay(currentPageIndex);
 
-        // PDF 내부 Ink Annotation 읽기
         mDebugTextList.add("annotation 읽기 in openPdf");
         try {
             List<PdfRenderedInkAnnotation> annots =
@@ -335,7 +348,6 @@ public class PdfInkSignView extends AppCompatImageView {
             mDebugTextList.add("annotation 읽기 오류: " + e.getMessage());
         }
 
-        // PDF 내부 AcroForm field 읽기
         mDebugTextList.add("form-field 읽기 in openPdf");
         try {
             List<PdfRenderedFormField> fields =
@@ -521,23 +533,19 @@ public class PdfInkSignView extends AppCompatImageView {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        // PDF 페이지 bitmap 그리기
         if (pageBitmap != null) {
             RectF dst = getPageDrawRect();
             canvas.drawBitmap(pageBitmap, null, dst, pdfPaint);
         }
 
-        // PDF 내부 Ink Annotation 다시 그리기
         for (int i = 0; i < mRenderedAnnotations.size(); i++) {
             drawRenderedAnnotation(canvas, mRenderedAnnotations.get(i));
         }
 
-        // PDF 내부 AcroForm field 다시 그리기
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             drawRenderedFormField(canvas, mRenderedFormFields.get(i));
         }
 
-        // 앱에서 그린 stroke 그리기
         for (int i = 0; i < strokes.size(); i++) {
             drawStroke(canvas, strokes.get(i));
         }
@@ -546,10 +554,8 @@ public class PdfInkSignView extends AppCompatImageView {
             drawStroke(canvas, currentStroke);
         }
 
-        // 디버그 문자열 그리기
         drawDebugText(canvas);
 
-        // 서명 bitmap 그리기
         if (signatureOverlay.visible && signatureOverlay.bitmap != null && !signatureOverlay.bitmap.isRecycled()) {
             RectF screenRect = pdfRectToScreenRect(signatureOverlay.pdfRect);
             canvas.drawBitmap(signatureOverlay.bitmap, null, screenRect, null);
@@ -654,7 +660,7 @@ public class PdfInkSignView extends AppCompatImageView {
      * 디버깅 문자열을 화면 좌측 상단에 그린다.
      */
     private void drawDebugText(Canvas canvas) {
-        if (1 == 1) return; // 출력하지 말자.
+        if (1 == 1) return;
 
         formTextPaint.setColor(Color.RED);
         formTextPaint.setTextSize(28f);
@@ -736,7 +742,6 @@ public class PdfInkSignView extends AppCompatImageView {
 
     /**
      * View 대각선 길이
-     * FingerPaintView3의 dispDistance()와 같은 역할
      */
     private float dispDistance() {
         return (float) Math.sqrt(getWidth() * getWidth() + getHeight() * getHeight());
@@ -792,12 +797,11 @@ public class PdfInkSignView extends AppCompatImageView {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        // 더블탭 감지
         if (mGestureDetector != null) {
             mGestureDetector.onTouchEvent(event);
         }
 
-        // 두 손가락 이상이면 FingerPaintView3 방식 확대/축소 + 2-finger pan 처리
+        // 두 손가락 이상이면 확대/축소 + 2-finger pan
         if (event.getPointerCount() >= 2) {
             PointF center = getMultiTouchCenter(event);
 
@@ -814,7 +818,6 @@ public class PdfInkSignView extends AppCompatImageView {
                             event.getY(0), event.getY(1)
                     );
 
-                    // 펜으로 그리던 중이면 종료
                     if (currentStroke != null) {
                         currentStroke = null;
                         invalidate();
@@ -823,7 +826,6 @@ public class PdfInkSignView extends AppCompatImageView {
                 }
 
                 case MotionEvent.ACTION_MOVE: {
-                    // 1) FingerPaintView3와 동일한 확대/축소 계산
                     float dist = distance(
                             event.getX(0), event.getX(1),
                             event.getY(0), event.getY(1)
@@ -840,7 +842,6 @@ public class PdfInkSignView extends AppCompatImageView {
                     if (newScale < mMinScaleFactor) newScale = mMinScaleFactor;
                     if (newScale > mMaxScaleFactor) newScale = mMaxScaleFactor;
 
-                    // 확대 기준점은 두 손가락 중심
                     float focusX = center.x;
                     float focusY = center.y;
 
@@ -852,7 +853,6 @@ public class PdfInkSignView extends AppCompatImageView {
 
                     mScaleFactor = newScale;
 
-                    // 2) 두 손가락 같은 방향 이동 시 pan
                     float dx = center.x - mLastMultiTouchCenterX;
                     float dy = center.y - mLastMultiTouchCenterY;
 
@@ -885,7 +885,7 @@ public class PdfInkSignView extends AppCompatImageView {
         float x = event.getX();
         float y = event.getY();
 
-        // 확대된 상태에서 MODE_NONE이면 한 손가락 pan 허용
+        // 확대 상태에서 한 손가락 pan은 MODE_NONE에서만 허용
         if (mScaleFactor > 1.0f && mode == MODE_NONE) {
             switch (event.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -926,10 +926,17 @@ public class PdfInkSignView extends AppCompatImageView {
         switch (mode) {
             case MODE_PEN:
                 return handlePen(event, x, y);
+
             case MODE_ERASER:
                 return handleEraser(event, x, y);
+
             case MODE_MOVE_SIGNATURE:
                 return handleMoveSignature(event, x, y);
+
+            case MODE_EDIT:
+                return handleEditModeTap(event, x, y);
+
+            case MODE_NONE:
             default:
                 return super.onTouchEvent(event);
         }
@@ -1041,6 +1048,40 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     /**
+     * 편집 모드 처리
+     */
+    private boolean handleEditModeTap(MotionEvent event, float x, float y) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                mDownX = x;
+                mDownY = y;
+                mSingleTapCandidate = true;
+                return true;
+
+            case MotionEvent.ACTION_MOVE:
+                if (Math.abs(x - mDownX) > mTouchSlop || Math.abs(y - mDownY) > mTouchSlop) {
+                    mSingleTapCandidate = false;
+                }
+                return true;
+
+            case MotionEvent.ACTION_UP:
+                if (mSingleTapCandidate) {
+                    if (handleTapField(x, y)) {
+                        return true;
+                    }
+                }
+                mSingleTapCandidate = false;
+                return true;
+
+            case MotionEvent.ACTION_CANCEL:
+                mSingleTapCandidate = false;
+                return true;
+        }
+
+        return false;
+    }
+
+    /**
      * 지우개와 가장 가까운 stroke를 찾아 삭제한다.
      */
     private void eraseNearestStroke(float pdfX, float pdfY, float eraserHitPdf) {
@@ -1145,6 +1186,8 @@ public class PdfInkSignView extends AppCompatImageView {
         if (fields != null) {
             mRenderedFormFields.addAll(fields);
         }
+
+        applyEditedValuesToRenderedFields();
         invalidate();
     }
 
@@ -1195,7 +1238,6 @@ public class PdfInkSignView extends AppCompatImageView {
         }
 
         float x = screenRect.left + 2f;
-        // 세로 중앙 정렬
         Paint.FontMetrics fm = formTextPaint.getFontMetrics();
         float textCenterY = screenRect.centerY();
         float y = textCenterY - ((fm.ascent + fm.descent) / 2f);
@@ -1225,10 +1267,30 @@ public class PdfInkSignView extends AppCompatImageView {
             if ("true".equalsIgnoreCase(value)
                     || "yes".equalsIgnoreCase(value)
                     || "on".equalsIgnoreCase(value)
-                    || "1".equalsIgnoreCase(value)) {
+                    || "1".equalsIgnoreCase(value)
+                    || "y".equalsIgnoreCase(value)) {
 
-                canvas.drawLine(screenRect.left, screenRect.top, screenRect.right, screenRect.bottom, shapePaint);
-                canvas.drawLine(screenRect.left, screenRect.bottom, screenRect.right, screenRect.top, shapePaint);
+                Paint checkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                checkPaint.setColor(field.colorArgb);
+                checkPaint.setStyle(Paint.Style.STROKE);
+                checkPaint.setStrokeWidth(3f);
+                checkPaint.setStrokeCap(Paint.Cap.ROUND);
+                checkPaint.setStrokeJoin(Paint.Join.ROUND);
+
+                float w = screenRect.width();
+                float h = screenRect.height();
+
+                float startX = screenRect.left + w * 0.18f;
+                float startY = screenRect.top + h * 0.55f;
+
+                float midX = screenRect.left + w * 0.42f;
+                float midY = screenRect.top + h * 0.78f;
+
+                float endX = screenRect.left + w * 0.82f;
+                float endY = screenRect.top + h * 0.22f;
+
+                canvas.drawLine(startX, startY, midX, midY, checkPaint);
+                canvas.drawLine(midX, midY, endX, endY, checkPaint);
             }
 
         } else if ("radio".equalsIgnoreCase(type)) {
@@ -1267,7 +1329,6 @@ public class PdfInkSignView extends AppCompatImageView {
             canvas.drawText(text, x, y, formTextPaint);
 
         } else {
-
             canvas.drawText(safe(field.value), x, y, formTextPaint);
         }
 
@@ -1279,5 +1340,123 @@ public class PdfInkSignView extends AppCompatImageView {
      */
     private String safe(String s) {
         return s == null ? "" : s;
+    }
+
+    public interface OnPdfFieldEditListener {
+        void onPdfTextFieldClick(PdfRenderedFormField field);
+    }
+
+    public void setOnPdfFieldEditListener(OnPdfFieldEditListener listener) {
+        this.mOnPdfFieldEditListener = listener;
+    }
+
+    /**
+     * 사용자가 수정한 필드값 전체를 반환한다.
+     */
+    public HashMap<String, String> getEditedFieldValues() {
+        return new HashMap<String, String>(mEditedFieldValues);
+    }
+
+    /**
+     * 특정 필드값을 외부에서 강제로 반영한다.
+     */
+    public void updateFieldValue(String fieldName, String newValue) {
+        if (fieldName == null) return;
+
+        if (newValue == null) newValue = "";
+        mEditedFieldValues.put(fieldName, newValue);
+
+        for (int i = 0; i < mRenderedFormFields.size(); i++) {
+            PdfRenderedFormField field = mRenderedFormFields.get(i);
+            if (field == null) continue;
+            if (field.name != null && field.name.equals(fieldName)) {
+                field.value = newValue;
+            }
+        }
+
+        invalidate();
+    }
+
+    /**
+     * 수정값 전체 삭제
+     */
+    public void clearEditedFieldValues() {
+        mEditedFieldValues.clear();
+        invalidate();
+    }
+
+    /**
+     * 새로 읽어온 field 리스트에 수정값을 덮어쓴다.
+     */
+    private void applyEditedValuesToRenderedFields() {
+        for (int i = 0; i < mRenderedFormFields.size(); i++) {
+            PdfRenderedFormField field = mRenderedFormFields.get(i);
+            if (field == null || field.name == null) continue;
+
+            if (mEditedFieldValues.containsKey(field.name)) {
+                field.value = mEditedFieldValues.get(field.name);
+            }
+        }
+    }
+
+    /**
+     * 사용자가 탭한 위치에 form field가 있으면 처리한다.
+     * - checkbox: 즉시 토글
+     * - text: 외부 리스너로 전달
+     */
+    private boolean handleTapField(float x, float y) {
+        for (int i = mRenderedFormFields.size() - 1; i >= 0; i--) {
+            PdfRenderedFormField field = mRenderedFormFields.get(i);
+            if (field == null || !field.isValid()) continue;
+
+            RectF screenRect = pdfRectToScreenRect(field.pdfRect);
+            if (!screenRect.contains(x, y)) continue;
+
+            String type = safe(field.type);
+
+            if ("checkbox".equalsIgnoreCase(type)) {
+                boolean checked = isCheckedValue(field.value);
+                String newValue = checked ? "Off" : "Yes";
+
+                field.value = newValue;
+                if (field.name != null) {
+                    mEditedFieldValues.put(field.name, newValue);
+                }
+
+                invalidate();
+                return true;
+            }
+
+            if ("text".equalsIgnoreCase(type)
+                    || "combo".equalsIgnoreCase(type)
+                    || "listbox".equalsIgnoreCase(type)
+                    || "choice".equalsIgnoreCase(type)
+                    || "button".equalsIgnoreCase(type)
+                    || "signature".equalsIgnoreCase(type)) {
+
+                if (mOnPdfFieldEditListener != null) {
+                    mOnPdfFieldEditListener.onPdfTextFieldClick(field);
+                    return true;
+                }
+            }
+
+            if ("".equals(type)) {
+                if (mOnPdfFieldEditListener != null) {
+                    mOnPdfFieldEditListener.onPdfTextFieldClick(field);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isCheckedValue(String value) {
+        String v = safe(value);
+        return "true".equalsIgnoreCase(v)
+                || "yes".equalsIgnoreCase(v)
+                || "on".equalsIgnoreCase(v)
+                || "1".equalsIgnoreCase(v)
+                || "y".equalsIgnoreCase(v);
     }
 }
