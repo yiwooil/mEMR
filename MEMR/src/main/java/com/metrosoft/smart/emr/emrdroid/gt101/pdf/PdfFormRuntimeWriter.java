@@ -24,7 +24,8 @@ public class PdfFormRuntimeWriter {
                 null, // 폼 필드를 생성하지 않는다.
                 valuesToFill,
                 signatures,
-                flattenAfterSave
+                flattenAfterSave,
+                null
         );
     }
 }

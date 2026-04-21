@@ -1195,7 +1195,10 @@ public class PdfInkSignView extends AppCompatImageView {
         }
 
         float x = screenRect.left + 2f;
-        float y = screenRect.bottom - 2f;
+        // 세로 중앙 정렬
+        Paint.FontMetrics fm = formTextPaint.getFontMetrics();
+        float textCenterY = screenRect.centerY();
+        float y = textCenterY - ((fm.ascent + fm.descent) / 2f);
 
         Paint debugPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         debugPaint.setStyle(Paint.Style.STROKE);

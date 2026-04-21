@@ -13,6 +13,8 @@ import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDType0Font;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceCharacteristicsDictionary;
@@ -75,7 +77,8 @@ public class PdfFormEditor {
             List<PdfFormTextFieldSpec> fieldsToCreate,
             Map<String, String> valuesToFill,
             List<PdfSignatureSpec> signatures,
-            boolean flattenAfterSave
+            boolean flattenAfterSave,
+            PdfErrorListener listener
     ) throws Exception {
 
         // Android용 PDFBox 초기화
@@ -92,7 +95,7 @@ public class PdfFormEditor {
             // 1. 새 텍스트 필드 생성
             if (fieldsToCreate != null) {
                 for (int i = 0; i < fieldsToCreate.size(); i++) {
-                    addTextField(document, acroForm, fieldsToCreate.get(i));
+                    addTextField(document, acroForm, fieldsToCreate.get(i), listener);
                 }
             }
 
@@ -119,7 +122,6 @@ public class PdfFormEditor {
 
             // 결과 저장
             document.save(outPdf);
-
         } finally {
             if (document != null) {
                 try {
@@ -138,7 +140,11 @@ public class PdfFormEditor {
      * - 기본 appearance를 /F1 10 Tf 0 g 로 강제
      * - NeedAppearances 설정
      */
-    private static PDAcroForm getOrCreateAcroForm(Context context, PDDocument document) throws Exception {
+    private static PDAcroForm getOrCreateAcroForm(
+            Context context,
+            PDDocument document
+    ) throws Exception {
+
         PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
 
         // AcroForm이 없으면 생성
@@ -191,12 +197,14 @@ public class PdfFormEditor {
     private static void addTextField(
             PDDocument document,
             PDAcroForm acroForm,
-            PdfFormTextFieldSpec spec
+            PdfFormTextFieldSpec spec,
+            PdfErrorListener listener
     ) throws Exception {
 
         if (spec == null) return;
         if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageIndex < 0 || spec.pageIndex >= document.getNumberOfPages()) return;
+        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
+
 
         // 이미 같은 이름의 필드가 있으면 중복 생성하지 않음
         PDField existing = acroForm.getField(spec.fieldName);
@@ -204,7 +212,12 @@ public class PdfFormEditor {
             return;
         }
 
-        PDPage page = document.getPage(spec.pageIndex);
+        PDPage page = document.getPage(spec.pageNo);
+        float pageHeight = page.getMediaBox().getHeight();
+
+        // PDF좌표는 좌측 하단이 (0,0)임 죄표를 변환해야힘.
+        float pdfX = spec.x;
+        float pdfY = pageHeight - spec.y - spec.height;
 
         // 새 텍스트 필드 생성
         PDTextField textField = new PDTextField(acroForm);
@@ -223,22 +236,26 @@ public class PdfFormEditor {
         // 실제 필드 값 설정
         textField.setValue(defaultValue);
 
-        // 화면에 보이는 widget 생성
-        PDAnnotationWidget widget = new PDAnnotationWidget();
+        // 새 widget를 만들지 말고 textField가 가진 widget를 사용
+        PDAnnotationWidget widget = textField.getWidgets().get(0);
+        if (widget == null) {
+            // 화면에 보이는 widget 생성
+            widget = new PDAnnotationWidget();
+            // appearance dictionary 설정
+            PDAppearanceCharacteristicsDictionary appearance =
+                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
+            widget.setAppearanceCharacteristics(appearance);
+        }
 
         // PDF 좌표로 영역 지정
         PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(spec.x);
-        rect.setLowerLeftY(spec.y);
-        rect.setUpperRightX(spec.x + spec.width);
-        rect.setUpperRightY(spec.y + spec.height);
+        rect.setLowerLeftX(pdfX);
+        rect.setLowerLeftY(pdfY);
+        rect.setUpperRightX(pdfX + spec.width);
+        rect.setUpperRightY(pdfY + spec.height);
         widget.setRectangle(rect);
         widget.setPage(page);
 
-        // appearance dictionary 설정
-        PDAppearanceCharacteristicsDictionary appearance =
-                new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-        widget.setAppearanceCharacteristics(appearance);
 
         // widget 자체에도 DA 설정
         try {
@@ -250,6 +267,53 @@ public class PdfFormEditor {
         textField.getWidgets().add(widget);
         page.getAnnotations().add(widget);
         acroForm.getFields().add(textField);
+
+        // 연결되었는지 검사
+        /*
+        try {
+            PDField addedField = acroForm.getField(spec.fieldName);
+
+            String msg = "";
+            if (addedField == null) {
+                msg += "addedField = null -> 필드 추가 실패";
+            } else {
+                msg += "fieldName = " + spec.fieldName + ",";
+                msg += "pageNo = " + spec.pageNo + ",";
+                msg += "pdfX = " + pdfX + ", pdfY = " + pdfY + ",";
+                msg += "width = " + spec.width + ", height = " + spec.height + ",";
+                msg += "page annotation count = " + page.getAnnotations().size() + ",";
+                msg += "acroForm field count = " + acroForm.getFields().size() + ",";
+
+                msg += "addedField found = " + addedField.getFullyQualifiedName()+ ",";
+
+                if (addedField.getWidgets() != null) {
+                    msg += "widget count = " + addedField.getWidgets().size() + ",";
+                    if (addedField.getWidgets().size() > 0) {
+                        List<PDAnnotationWidget> widgets = addedField.getWidgets();
+                        for (int wi = 0; wi < widgets.size(); wi++) {
+                            PDAnnotationWidget w = widgets.get(wi);
+                            PDRectangle r = w.getRectangle();
+                            if (r == null) {
+                                msg += "widget[" + wi + "] rect = null,";
+                            } else {
+                                msg += "widget[" + wi + "] rect = ["
+                                        + r.getLowerLeftX() + ", "
+                                        + r.getLowerLeftY() + ", "
+                                        + r.getUpperRightX() + ", "
+                                        + r.getUpperRightY() + "],";
+                            }
+                        }
+                    }
+                } else {
+                    msg += "widget list = null" + ",";
+                }
+            }
+            if (listener != null) listener.onError(msg);
+
+        } catch (Exception ex) {
+            Log.e(TAG, "addTextField verify error: " + ex.getMessage(), ex);
+        }
+        */
     }
 
     /**
@@ -267,8 +331,6 @@ public class PdfFormEditor {
         for (Map.Entry<String, String> entry : values.entrySet()) {
             String fieldName = entry.getKey();
             String fieldValue = entry.getValue();
-
-
 
             PDField field = acroForm.getField(fieldName);
             if (field != null) {
