@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.util.Log;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
+import com.tom_roush.pdfbox.cos.COSArray;
 import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
@@ -92,11 +93,13 @@ public class PdfFormEditor {
             PDAcroForm acroForm = getOrCreateAcroForm(context, document);
 
             // 1. 새 필드 생성
+            if (listener != null) listener.onError(" 101");
             if (fieldsToCreate != null) {
                 for (int i = 0; i < fieldsToCreate.size(); i++) {
                     PdfFormTextFieldSpec spec = fieldsToCreate.get(i);
                     if (spec == null) continue;
 
+                    if (listener != null) listener.onError(" 101" + ", fieldName=" + spec.fieldName + ", typeName=" + spec.typeName);
                     String typeName = spec.typeName == null ? "" : spec.typeName.trim();
                     if ("checkbox".equalsIgnoreCase(typeName)) {
                         addCheckBoxField(document, acroForm, spec, listener);
@@ -107,11 +110,13 @@ public class PdfFormEditor {
             }
 
             // 2. 기존/신규 필드 값 채우기
+            if (listener != null) listener.onError(" 102");
             if (valuesToFill != null) {
                 fillFieldValues(acroForm, valuesToFill, listener);
             }
 
             // 3. 사인 이미지 삽입
+            if (listener != null) listener.onError(" 103");
             if (signatures != null) {
                 for (int i = 0; i < signatures.size(); i++) {
                     drawSignature(document, signatures.get(i));
@@ -119,6 +124,7 @@ public class PdfFormEditor {
             }
 
             // 4. flatten 처리
+            if (listener != null) listener.onError(" 104");
             if (flattenAfterSave) {
                 try {
                     acroForm.flatten();
@@ -128,6 +134,7 @@ public class PdfFormEditor {
             }
 
             // 결과 저장
+            if (listener != null) listener.onError(" 105");
             document.save(outPdf);
 
         } finally {
@@ -202,42 +209,44 @@ public class PdfFormEditor {
             return;
         }
 
+        if (listener != null) listener.onError(" a01");
         PDPage page = document.getPage(spec.pageNo);
+
+        if (listener != null) listener.onError(" a02");
         float pageHeight = page.getMediaBox().getHeight();
 
-        // PDF 좌표는 좌측 하단 기준
         float pdfX = spec.x;
         float pdfY = pageHeight - spec.y - spec.height;
 
+        if (listener != null) listener.onError(" a03");
         PDTextField textField = new PDTextField(acroForm);
         textField.setPartialName(spec.fieldName);
+        if (spec.readOnly) {
+            textField.setReadOnly(true);
+        }
 
         String value = getSpecValue(spec);
 
         int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
         String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
 
+        if (listener != null) listener.onError(" a04");
         textField.setDefaultAppearance(fieldDA);
         textField.setDefaultValue(value);
-        textField.setValue(value);
 
-        PDAnnotationWidget widget;
-        if (textField.getWidgets() != null && textField.getWidgets().size() > 0) {
-            widget = textField.getWidgets().get(0);
-        } else {
-            widget = new PDAnnotationWidget();
-            textField.getWidgets().add(widget);
-        }
+        if (listener != null) listener.onError(" a05");
+        PDAnnotationWidget widget = new PDAnnotationWidget();
 
         PDRectangle rect = new PDRectangle();
         rect.setLowerLeftX(pdfX);
         rect.setLowerLeftY(pdfY);
         rect.setUpperRightX(pdfX + spec.width);
         rect.setUpperRightY(pdfY + spec.height);
+
         widget.setRectangle(rect);
         widget.setPage(page);
+        widget.setParent(textField);
 
-        // 최소한의 appearance dictionary
         try {
             PDAppearanceCharacteristicsDictionary appearance =
                     new PDAppearanceCharacteristicsDictionary(new COSDictionary());
@@ -245,7 +254,6 @@ public class PdfFormEditor {
         } catch (Exception ignore) {
         }
 
-        // 테두리
         try {
             PDBorderStyleDictionary border = new PDBorderStyleDictionary();
             border.setWidth(1);
@@ -258,21 +266,29 @@ public class PdfFormEditor {
         } catch (Exception ignore) {
         }
 
-        page.getAnnotations().add(widget);
-        acroForm.getFields().add(textField);
+        if (listener != null) listener.onError(" a06");
 
-        /*
-        if (listener != null) {
-            listener.onError("text field added"
-                    + ", fieldName=" + spec.fieldName
-                    + ", pageNo=" + spec.pageNo
-                    + ", pdfX=" + pdfX
-                    + ", pdfY=" + pdfY
-                    + ", width=" + spec.width
-                    + ", height=" + spec.height
-                    + ", value=" + value);
-        }
-        */
+        // widget 연결: high-level list 조작 대신 KIDS를 raw로 설정
+        COSArray kids = new COSArray();
+        kids.add(widget.getCOSObject());
+        textField.getCOSObject().setItem(COSName.KIDS, kids);
+
+        if (listener != null) listener.onError(" a07");
+
+        // field를 AcroForm에 raw 추가
+        addFieldToAcroFormRaw(acroForm, textField);
+
+        if (listener != null) listener.onError(" a08");
+
+        // page annotation에 widget 등록
+        page.getAnnotations().add(widget);
+
+        if (listener != null) listener.onError(" a09");
+
+        // 마지막에 값 반영
+        textField.setValue(value);
+
+        if (listener != null) listener.onError(" a10");
     }
 
     /**
@@ -303,21 +319,17 @@ public class PdfFormEditor {
         PDCheckBox checkBox = new PDCheckBox(acroForm);
         checkBox.setPartialName(spec.fieldName);
 
-        PDAnnotationWidget widget;
-        if (checkBox.getWidgets() != null && checkBox.getWidgets().size() > 0) {
-            widget = checkBox.getWidgets().get(0);
-        } else {
-            widget = new PDAnnotationWidget();
-            checkBox.getWidgets().add(widget);
-        }
+        PDAnnotationWidget widget = new PDAnnotationWidget();
 
         PDRectangle rect = new PDRectangle();
         rect.setLowerLeftX(pdfX);
         rect.setLowerLeftY(pdfY);
         rect.setUpperRightX(pdfX + spec.width);
         rect.setUpperRightY(pdfY + spec.height);
+
         widget.setRectangle(rect);
         widget.setPage(page);
+        widget.setParent(checkBox);
 
         try {
             PDAppearanceCharacteristicsDictionary appearance =
@@ -338,24 +350,16 @@ public class PdfFormEditor {
         } catch (Exception ignore) {
         }
 
+        COSArray kids = new COSArray();
+        kids.add(widget.getCOSObject());
+        checkBox.getCOSObject().setItem(COSName.KIDS, kids);
+
+        addFieldToAcroFormRaw(acroForm, checkBox);
+
         page.getAnnotations().add(widget);
-        acroForm.getFields().add(checkBox);
 
         String value = getSpecValue(spec);
         setCheckBoxValue(checkBox, value);
-
-        /*
-        if (listener != null) {
-            listener.onError("checkbox field added"
-                    + ", fieldName=" + spec.fieldName
-                    + ", pageNo=" + spec.pageNo
-                    + ", pdfX=" + pdfX
-                    + ", pdfY=" + pdfY
-                    + ", width=" + spec.width
-                    + ", height=" + spec.height
-                    + ", value=" + value);
-        }
-        */
     }
 
     /**
@@ -498,5 +502,17 @@ public class PdfFormEditor {
                 }
             }
         }
+    }
+
+    private static void addFieldToAcroFormRaw(PDAcroForm acroForm, PDField field) {
+        if (acroForm == null || field == null) return;
+
+        COSArray fieldsArray = (COSArray) acroForm.getCOSObject().getDictionaryObject(COSName.FIELDS);
+        if (fieldsArray == null) {
+            fieldsArray = new COSArray();
+            acroForm.getCOSObject().setItem(COSName.FIELDS, fieldsArray);
+        }
+
+        fieldsArray.add(field.getCOSObject());
     }
 }

@@ -207,6 +207,11 @@ public class PdfFormFieldReader {
             item.value = value;
             item.fontSizePdf = fontSizePdf;
             item.colorArgb = colorArgb;
+            item.readOnly = false;
+            try {
+                item.readOnly = field.isReadOnly();
+            } catch (Throwable ignore) {
+            }
 
             // PdfRenderedFormField에 type 멤버가 있다면 사용하는 것이 좋다.
             // 없으면 이 줄은 제거해도 된다.

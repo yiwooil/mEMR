@@ -1802,7 +1802,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             if ("".equalsIgnoreCase(mErrMsg)) {
                                 if (isPdf) {
                                     // pdf문서 form-field에 값을 뿌리는 함수
+                                    setDialogMessage("문서 준비 중입니다...(1)" + (isPdf ? "(pdf)" : ""));
                                     applyPdfFormFieldsToDownloadedPages();
+                                    setDialogMessage("문서 준비 중입니다...(2)" + (isPdf ? "(pdf)" : ""));
                                     afterGetCertificatePaperPdf();
                                 } else {
                                     for (int i = 0; i < mPageCount; i++) {
@@ -2961,27 +2963,38 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private void applyPdfFormFieldsToDownloadedPages() throws Exception {
         if (mPdfFilePathList == null || mPdfFilePathList.size() <= 0) return;
 
-        for (int i = 0; i < mPdfFilePathList.size(); i++) {
+        int pageCnt = mPdfFilePathList.size();
+        for (int i = 0; i < pageCnt; i++) {
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-1)(pdf)");
             String srcPath = mPdfFilePathList.get(i);
             if ("".equals(nvl(srcPath))) continue;
 
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-2)(pdf)");
             File srcPdf = new File(srcPath);
             if (!srcPdf.exists()) continue;
 
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-3)(pdf)");
             List<PdfFormTextFieldSpec> fields = buildPdfFormFieldSpecList(i);
+
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-4)(pdf)");
             Map<String, String> values = buildPdfFieldValues(i);
 
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-5)(pdf)");
             Map<String, String> valuesToFill = new HashMap<String, String>();
 
             // 기존 값
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-6)(pdf)");
             valuesToFill.putAll(values);
 
             // 사용자가 화면에서 수정한 값 우선 반영
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-7)(pdf)");
             valuesToFill.putAll(mPdfViewList.get(i).getEditedFieldValues());
 
             // 값이 하나도 없으면 건너뜀
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-8)(pdf)");
             if (values == null || values.size() == 0) continue;
 
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-9)(pdf)");
             File outPdf = new File(srcPdf.getParent(), "filled_" + srcPdf.getName());
 
             // 현재 단계에서는 텍스트 필드만 채우고, flatten은 하지 않는 쪽이 좋습니다.
@@ -2995,6 +3008,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     false   // 필드값 수정 못하게 고정 여부
             );
             */
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-10)(pdf)");
+            final String msgmsg = (i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-10)(pdf)";
             PdfFormEditor.prepareAndFillPdf(
                     this,
                     srcPdf, // 원본 PDF
@@ -3006,11 +3021,13 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     new PdfErrorListener() {
                         @Override
                         public void onError(String msg) {
-                            showSimpleDialogThread(msg);
+                            //showSimpleDialogThread(msg);
+                            setDialogMessage(msgmsg + msg);
                         }
                     }
             );
 
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-11)(pdf)");
             mPdfFilePathList.set(i, outPdf.getAbsolutePath());
         }
     }
@@ -3136,6 +3153,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
     private void showPdfTextFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
         if (pdfView == null || field == null) return;
+
+        // readonly면 편집창을 띄우지 않음
+        if (field.readOnly) return;
 
         final EditText editText = new EditText(this);
         editText.setText(field.value == null ? "" : field.value);
