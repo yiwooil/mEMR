@@ -1261,7 +1261,8 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("checkbox".equalsIgnoreCase(type)) {
 
-            canvas.drawRect(screenRect, shapePaint);
+            //테두리제거
+            //canvas.drawRect(screenRect, shapePaint);
 
             String value = safe(field.value);
             if ("true".equalsIgnoreCase(value)
@@ -1332,7 +1333,10 @@ public class PdfInkSignView extends AppCompatImageView {
             canvas.drawText(safe(field.value), x, y, formTextPaint);
         }
 
-        canvas.drawRect(screenRect, debugPaint);
+        // readonly 필드가 아니면 초록색 테두리를 그림
+        if (!field.readOnly) {
+            canvas.drawRect(screenRect, debugPaint);
+        }
     }
 
     /**
