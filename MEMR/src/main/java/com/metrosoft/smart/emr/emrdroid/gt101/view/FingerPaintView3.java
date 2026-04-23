@@ -651,20 +651,20 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 						}
     			}else{
 	    			Rect rect = new Rect();
-	    			//float height = mCcfValues.getH(i)*ratioH*scale + tranY;
-					//float width = mCcfValues.getW(i)*ratioW*scale + tranX; // 2024.04.26 WOOIL -
 	    			String[] ccfV = (ccfValue+System.getProperty("line.separator")).split(System.getProperty("line.separator"));
 	    			// 2024.04.26 WOOIL - 글자를 박스안에 출력되도록 제한.
-	    			for(int lno=0;lno<ccfV.length;lno++){
-	    				if(autoFit){
+	    			for (int lno = 0; lno < ccfV.length; lno++) {
+	    				if (autoFit) {
 							int start = 0;
 							int end = ccfV[lno].length();
-	    					while(true){
-	    						while(true) {
+	    					while (true){
+	    						while (true) {
 	    							// 2024.04.26 WOOIL - 설정해 놓은 너비만큼 만 출력되도록 글자 길이를 정한다.
 									mTextPaint.getTextBounds(ccfV[lno], start, end, rect);
 									if (rect.width() <= width) break; // 출력하면 됨.
 									end--; // 너비를 넘어가면 글자 수를 줄인다.
+									// end가 start보다 작어지면 getTexBounds에서 오류가 발생하므로 이곳에서 탈출한다.
+									if (end < start) break;
 								}
 								if (end <= start) break; // 2026.04.07 WOOIL - 한 글자도 못 들어가는 경우 탈출
 								fy += rect.height();
@@ -689,22 +689,6 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 						}
 	    			}
     			}
-    			/*
-    			if(mCcfValues.getH(i)<=14.0){
-	    			mTextPaint.getTextBounds(ccfValue, 0, ccfValue.length(), rect);
-	    			//rect.set(ifx, ify+rect.top, ifx+rect.width(), ify+rect.bottom);
-	    			fy += rect.height();
-	    			canvas.drawText(ccfValue, fx, fy, mTextPaint);
-	    			//Log.d("EmrDroid","writePatientInfo x=" + x + ", y=" + y + ", fx=" + fx + ", fy=" + fy);
-    			}else{
-	    			String[] ccfV = (ccfValue+System.getProperty("line.separator")).split(System.getProperty("line.separator"));
-	    			for(int lno=0;lno<ccfV.length-1;lno++){
-		    			mTextPaint.getTextBounds(ccfV[lno], 0, ccfV[lno].length(), rect);
-		    			fy += rect.height();
-		    			canvas.drawText(ccfV[lno], fx, fy, mTextPaint);
-	    			}
-    			}
-    			*/
     		}
     	}
 
