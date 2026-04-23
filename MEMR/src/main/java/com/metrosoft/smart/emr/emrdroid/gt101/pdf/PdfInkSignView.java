@@ -1412,6 +1412,11 @@ public class PdfInkSignView extends AppCompatImageView {
             RectF screenRect = pdfRectToScreenRect(field.pdfRect);
             if (!screenRect.contains(x, y)) continue;
 
+            // readonly 필드는 편집/토글 모두 막음
+            if (field.readOnly) {
+                return true;   // 터치는 소비하지만 편집창은 띄우지 않음
+            }
+
             String type = safe(field.type);
 
             if ("checkbox".equalsIgnoreCase(type)) {

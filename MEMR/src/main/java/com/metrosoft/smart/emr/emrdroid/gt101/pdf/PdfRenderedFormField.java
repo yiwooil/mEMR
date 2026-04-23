@@ -14,6 +14,7 @@ public class PdfRenderedFormField {
     public float fontSizePdf;
     public int colorArgb;
     public RectF pdfRect;
+    public boolean readOnly = false;
 
     public boolean isValid() {
         return pdfRect != null;
