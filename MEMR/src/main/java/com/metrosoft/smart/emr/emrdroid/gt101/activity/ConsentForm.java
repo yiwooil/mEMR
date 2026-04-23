@@ -1013,13 +1013,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private String mFileName;
 
     private void saveSignImage(final String preSave) {
-        // 2026.01.14 WOOIL - PDF 동의서 처리
-        //if (mIsPdfConsent) {
-        //    savePdfConsent(preSave);
-        //    return;
-        //}
-        // 사인이미지저장.
-        //mDialog = ProgressDialog.show(this, "", getString(R.string.process_wait_message), true);
         showProgressDialog(getString(R.string.process_wait_message));
 
         new Thread(new Runnable() {

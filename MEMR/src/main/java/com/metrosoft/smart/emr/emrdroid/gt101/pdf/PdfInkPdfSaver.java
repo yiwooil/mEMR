@@ -17,12 +17,17 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox;
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDNonTerminalField;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class PdfInkPdfSaver {
 
@@ -34,6 +39,10 @@ public class PdfInkPdfSaver {
         try {
             document = PDDocument.load(srcPdf);
 
+            // 1. 사용자가 수정한 form field 값(text / checkbox)을 먼저 반영
+            saveEditedFormFields(document, view);
+
+            // 2. 페이지별 펜 stroke / 서명 저장
             HashMap<Integer, ArrayList<PdfInkStroke>> allPageStrokes = view.getAllPageStrokes();
             HashMap<Integer, PdfSignatureOverlay> allPageSigns = view.getAllPageSignatures();
 
@@ -57,6 +66,60 @@ public class PdfInkPdfSaver {
                 document.close();
             }
         }
+    }
+
+    /**
+     * 사용자가 수정한 AcroForm field 값을 PDF에 반영한다.
+     * - checkbox : Yes / Off 계열로 저장
+     * - text     : 문자열 그대로 저장
+     */
+    private static void saveEditedFormFields(PDDocument document, PdfInkSignView view) throws IOException {
+        if (document == null || view == null) return;
+
+        PDAcroForm acroForm = null;
+        try {
+            if (document.getDocumentCatalog() != null) {
+                acroForm = document.getDocumentCatalog().getAcroForm();
+            }
+        } catch (Exception ignore) {
+        }
+
+        if (acroForm == null) return;
+
+        Map<String, String> editedValues = view.getEditedFieldValues();
+        if (editedValues == null || editedValues.isEmpty()) return;
+
+        for (Map.Entry<String, String> entry : editedValues.entrySet()) {
+            String fieldName = entry.getKey();
+            String fieldValue = entry.getValue();
+
+            if (fieldName == null || "".equals(fieldName.trim())) continue;
+
+            PDField field = null;
+            try {
+                field = acroForm.getField(fieldName);
+            } catch (Exception ignore) {
+            }
+
+            if (field == null) continue;
+
+            try {
+                if (field instanceof PDCheckBox) {
+                    setCheckBoxValue((PDCheckBox) field, fieldValue);
+                } else {
+                    field.setValue(fieldValue == null ? "" : fieldValue);
+                }
+            } catch (Exception ignore) {
+            }
+        }
+
+        try {
+            acroForm.setNeedAppearances(true);
+        } catch (Exception ignore) {
+        }
+
+        // 문서의 모든 form field를 readonly 처리
+        setAllFieldsReadOnly(acroForm);
     }
 
     private static void savePageInkAnnotations(PDDocument document, PDPage page, List<PdfInkStroke> strokes) throws IOException {
@@ -132,6 +195,46 @@ public class PdfInkPdfSaver {
         return arr;
     }
 
+    /**
+     * checkbox 값을 PDF에 반영한다.
+     * true 계열이면 check(), 아니면 unCheck() 시도.
+     * 실패 시 setValue("Yes"/"Off")로 한 번 더 시도.
+     */
+    private static void setCheckBoxValue(PDCheckBox checkBox, String value) throws IOException {
+        if (checkBox == null) return;
+
+        if (isTrueValue(value)) {
+            try {
+                checkBox.check();
+            } catch (Exception e) {
+                try {
+                    checkBox.setValue("Yes");
+                } catch (Exception ignore) {
+                }
+            }
+        } else {
+            try {
+                checkBox.unCheck();
+            } catch (Exception e) {
+                try {
+                    checkBox.setValue("Off");
+                } catch (Exception ignore) {
+                }
+            }
+        }
+    }
+
+    private static boolean isTrueValue(String value) {
+        if (value == null) return false;
+
+        String v = value.trim();
+        return "true".equalsIgnoreCase(v)
+                || "yes".equalsIgnoreCase(v)
+                || "on".equalsIgnoreCase(v)
+                || "1".equalsIgnoreCase(v)
+                || "y".equalsIgnoreCase(v);
+    }
+
     private static PDColor toPdColor(int colorArgb) {
         float[] rgb = new float[] {
                 Color.red(colorArgb) / 255f,
@@ -139,5 +242,41 @@ public class PdfInkPdfSaver {
                 Color.blue(colorArgb) / 255f
         };
         return new PDColor(rgb, PDDeviceRGB.INSTANCE);
+    }
+
+    private static void setAllFieldsReadOnly(PDAcroForm acroForm) {
+        if (acroForm == null) return;
+
+        try {
+            List<PDField> fields = acroForm.getFields();
+            if (fields == null) return;
+
+            for (int i = 0; i < fields.size(); i++) {
+                setFieldAndChildrenReadOnly(fields.get(i), true);
+            }
+        } catch (Exception ignore) {
+        }
+    }
+
+    private static void setFieldAndChildrenReadOnly(PDField field, boolean readOnly) {
+        if (field == null) return;
+
+        try {
+            field.setReadOnly(readOnly);
+        } catch (Exception ignore) {
+        }
+
+        // children은 PDNonTerminalField에만 있음
+        if (field instanceof PDNonTerminalField) {
+            try {
+                List<PDField> children = ((PDNonTerminalField) field).getChildren();
+                if (children != null) {
+                    for (int i = 0; i < children.size(); i++) {
+                        setFieldAndChildrenReadOnly(children.get(i), readOnly);
+                    }
+                }
+            } catch (Exception ignore) {
+            }
+        }
     }
 }

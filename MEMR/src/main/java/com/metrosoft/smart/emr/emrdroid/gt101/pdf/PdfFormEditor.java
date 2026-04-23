@@ -18,6 +18,8 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceCharacteristicsDictionary;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
+import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox;
@@ -293,6 +295,8 @@ public class PdfFormEditor {
 
     /**
      * 새 체크박스 필드 생성
+     * - 일반 PDF 뷰어(Edge, Acrobat 등)에서도 보이도록
+     *   Off / On appearance stream을 직접 만든다.
      */
     private static void addCheckBoxField(
             PDDocument document,
@@ -316,9 +320,14 @@ public class PdfFormEditor {
         float pdfX = spec.x;
         float pdfY = pageHeight - spec.y - spec.height;
 
+        // 1. field 생성
         PDCheckBox checkBox = new PDCheckBox(acroForm);
         checkBox.setPartialName(spec.fieldName);
+        if (spec.readOnly) {
+            checkBox.setReadOnly(true);
+        }
 
+        // 2. widget 생성
         PDAnnotationWidget widget = new PDAnnotationWidget();
 
         PDRectangle rect = new PDRectangle();
@@ -340,26 +349,38 @@ public class PdfFormEditor {
 
         try {
             PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(1);
+            border.setWidth(0); // checkbox 테두리를 없앤다.
             widget.setBorderStyle(border);
         } catch (Exception ignore) {
         }
 
-        try {
-            widget.getCOSObject().setString(COSName.DA, DEFAULT_DA);
-        } catch (Exception ignore) {
-        }
+        // 3. appearance stream 생성
+        // 일반 뷰어가 checkbox를 표시하려면 /AP(N) 안에 Off / On appearance가 있어야 한다.
+        String onValue = "Yes"; // 기본값
+        PDAppearanceDictionary ap = createCheckBoxAppearance(document, rect, onValue);
+        widget.setAppearance(ap);
 
+        // 4. field <-> widget 연결
         COSArray kids = new COSArray();
         kids.add(widget.getCOSObject());
         checkBox.getCOSObject().setItem(COSName.KIDS, kids);
 
         addFieldToAcroFormRaw(acroForm, checkBox);
-
         page.getAnnotations().add(widget);
 
+        // 5. 실제 On 이름을 다시 확인
+        // getOnValue()는 normal appearance keys를 보고 결정된다.
+        try {
+            String actualOnValue = checkBox.getOnValue();
+            if (actualOnValue != null && actualOnValue.trim().length() > 0) {
+                onValue = actualOnValue;
+            }
+        } catch (Exception ignore) {
+        }
+
+        // 6. 값 반영
         String value = getSpecValue(spec);
-        setCheckBoxValue(checkBox, value);
+        setCheckBoxValue(checkBox, widget, value, onValue);
     }
 
     /**
@@ -515,4 +536,138 @@ public class PdfFormEditor {
 
         fieldsArray.add(field.getCOSObject());
     }
+
+    /**
+     * checkbox의 Off / On appearance를 만든다.
+     */
+    private static PDAppearanceDictionary createCheckBoxAppearance(
+            PDDocument document,
+            PDRectangle rect,
+            String onValue
+    ) throws Exception {
+
+        PDAppearanceStream offStream = createCheckBoxAppearanceStream(document, rect, false);
+        PDAppearanceStream onStream  = createCheckBoxAppearanceStream(document, rect, true);
+
+        COSDictionary normalAppearances = new COSDictionary();
+        normalAppearances.setItem(COSName.Off, offStream);
+        normalAppearances.setItem(COSName.getPDFName(onValue), onStream);
+
+        PDAppearanceDictionary ap = new PDAppearanceDictionary();
+        ap.getCOSObject().setItem(COSName.N, normalAppearances);
+
+        return ap;
+    }
+
+    /**
+     * checkbox 1개의 appearance stream 생성
+     * checked=false : 빈 박스
+     * checked=true  : 체크 표시가 있는 박스
+     */
+    private static PDAppearanceStream createCheckBoxAppearanceStream(
+            PDDocument document,
+            PDRectangle rect,
+            boolean checked
+    ) throws Exception {
+
+        PDAppearanceStream stream = new PDAppearanceStream(document);
+        stream.setResources(new PDResources());
+
+        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
+        stream.setBBox(bbox);
+
+        PDPageContentStream cs = null;
+        try {
+            cs = new PDPageContentStream(document, stream);
+
+            float w = rect.getWidth();
+            float h = rect.getHeight();
+
+            // 배경 흰색
+            cs.setNonStrokingColor(255, 255, 255);
+            cs.addRect(0, 0, w, h);
+            cs.fill();
+
+            // 테두리 검정 ==> 테두리를 없앰.
+            //cs.setStrokingColor(0, 0, 0);
+            //cs.setLineWidth(1f);
+            //cs.addRect(0.5f, 0.5f, w - 1f, h - 1f);
+            //cs.stroke();
+
+            // 체크 표시
+            if (checked) {
+                cs.setStrokingColor(0, 0, 0);
+                cs.setLineWidth(Math.max(1.5f, Math.min(w, h) * 0.12f));
+
+                float startX = w * 0.18f;
+                float startY = h * 0.55f;
+
+                float midX = w * 0.42f;
+                float midY = h * 0.22f;
+
+                float endX = w * 0.82f;
+                float endY = h * 0.78f;
+
+                cs.moveTo(startX, startY);
+                cs.lineTo(midX, midY);
+                cs.lineTo(endX, endY);
+                cs.stroke();
+            }
+
+        } finally {
+            if (cs != null) {
+                try {
+                    cs.close();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+
+        return stream;
+    }
+
+    /**
+     * checkbox 값을 field + widget appearance state에 같이 반영한다.
+     */
+    private static void setCheckBoxValue(
+            PDCheckBox checkBox,
+            PDAnnotationWidget widget,
+            String value,
+            String onValue
+    ) throws Exception {
+
+        if (checkBox == null || widget == null) return;
+
+        String onName = (onValue == null || "".equals(onValue.trim())) ? "Yes" : onValue;
+
+        if (isTrueValue(value)) {
+            try {
+                checkBox.setValue(onName);
+            } catch (Exception e) {
+                try {
+                    checkBox.check();
+                } catch (Exception ignore) {
+                }
+            }
+            try {
+                widget.setAppearanceState(onName);
+            } catch (Exception ignore) {
+            }
+
+        } else {
+            try {
+                checkBox.setValue("Off");
+            } catch (Exception e) {
+                try {
+                    checkBox.unCheck();
+                } catch (Exception ignore) {
+                }
+            }
+            try {
+                widget.setAppearanceState("Off");
+            } catch (Exception ignore) {
+            }
+        }
+    }
+
 }
