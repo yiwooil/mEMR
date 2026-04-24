@@ -1639,9 +1639,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
     private void getCertificatePaper() {
         if (isImageConsentFile() || isPdfConsentFile()) {
-            getCertificatePaperImage(isPdfConsentFile());
-        //} else if (isPdfConsentFile()) {
-        //    getCertificatePaperPdf();
+            getCertificatePaperImageAndPdf(isPdfConsentFile());
         } else {
             //mDialog = ProgressDialog.show(this, "", getString(R.string.query_wait_message), true);
             showProgressDialog(getString(R.string.query_wait_message));
@@ -1678,7 +1676,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
     private String mErrPos = "0";
     private String mErrMsg = "";
-    private void getCertificatePaperImage(final boolean isPdf) {
+    private void getCertificatePaperImageAndPdf(final boolean isPdf) {
         mErrPos = "0";
         mErrMsg = "";
         showProgressDialog(getString(R.string.query_wait_message));
@@ -1725,38 +1723,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(3)" + (isPdf ? "(pdf)" : ""));
 
                         // 2022.04.27 WOOIL - 의사 사인
-                        ResultSetHelper rsHelper = new ResultSetHelper(mCcfValueXml[pageIdx], false);
-                        int rsCount = rsHelper.getRecordCount();
-                        for (int ii = 0; ii < rsCount; ii++) {
-                            String ccfValue = rsHelper.getString(ii, "ccf_value");
-                            if (ccfValue.startsWith("sign_")) {
-                                String drid = ccfValue.substring(5);
-                                String signUrl = "";
-                                signUrl += "EmrScanServlet";
-                                signUrl += "?hospitalid=" + hospitalId;
-                                signUrl += "&userid=" + userId;
-                                signUrl += "&drid=" + drid;
-                                signUrl += "&mode=9";
-                                String fullUrl = getFullUrl(signUrl);
-
-                                String dstDir = mActivity.getFilesDir().getAbsolutePath();
-                                String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
-                                Utils.downFile(mActivity, fullUrl, dstPath);
-                            }else if (ccfValue.startsWith("logindrsign_")) {
-                                String drid = ccfValue.substring(12);
-                                String signUrl = "";
-                                signUrl += "EmrScanServlet";
-                                signUrl += "?hospitalid=" + hospitalId;
-                                signUrl += "&userid=" + userId;
-                                signUrl += "&drid=" + drid;
-                                signUrl += "&mode=9";
-                                String fullUrl = getFullUrl(signUrl);
-
-                                String dstDir = mActivity.getFilesDir().getAbsolutePath();
-                                String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
-                                Utils.downFile(mActivity, fullUrl, dstPath);
-                            }
-                        }
+                        downloadSignImage(pageIdx, hospitalId, userId);
 
                         setDialogMessage((pageIdx + 1) + "/" + mPageCount + " 페이지 준비 중입니다...(4)" + (isPdf ? "(pdf)" : ""));
 
@@ -2034,6 +2001,70 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             //Toast.makeText(mActivity,  "동의서 페이지 구성 중 오류 발생 " + e.getLocalizedMessage() , Toast.LENGTH_SHORT).show();
         } catch (Exception ex){
             //Toast.makeText(mActivity,  "동의서 페이지 구성 중 오류 발생 " + ex.getLocalizedMessage() , Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void downloadSignImage(final int pageIdx,final String hospitalId, final String userId ) throws Exception {
+        // 2022.04.27 WOOIL - 의사 사인
+        ResultSetHelper rsHelper = new ResultSetHelper(mCcfValueXml[pageIdx], false);
+        int rsCount = rsHelper.getRecordCount();
+        for (int ii = 0; ii < rsCount; ii++) {
+            String ccfValue = rsHelper.getString(ii, "ccf_value");
+            if (ccfValue.startsWith("sign_") || ccfValue.startsWith("logindrsign_") || ccfValue.startsWith("login_sign_")) {
+                String[] parts = ccfValue.split("_");
+                String drid = parts[parts.length - 1];
+                String signUrl = "";
+                signUrl += "EmrScanServlet";
+                signUrl += "?hospitalid=" + hospitalId;
+                signUrl += "&userid=" + userId;
+                signUrl += "&drid=" + drid;
+                signUrl += "&mode=9";
+                String fullUrl = getFullUrl(signUrl);
+
+                String dstDir = mActivity.getFilesDir().getAbsolutePath();
+                String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
+                Utils.downFile(mActivity, fullUrl, dstPath);
+            } /*else if (ccfValue.startsWith("sign_")) {
+                String drid = ccfValue.substring(5);
+                String signUrl = "";
+                signUrl += "EmrScanServlet";
+                signUrl += "?hospitalid=" + hospitalId;
+                signUrl += "&userid=" + userId;
+                signUrl += "&drid=" + drid;
+                signUrl += "&mode=9";
+                String fullUrl = getFullUrl(signUrl);
+
+                String dstDir = mActivity.getFilesDir().getAbsolutePath();
+                String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
+                Utils.downFile(mActivity, fullUrl, dstPath);
+            } else if (ccfValue.startsWith("logindrsign_")) {
+                String drid = ccfValue.substring(12);
+                String signUrl = "";
+                signUrl += "EmrScanServlet";
+                signUrl += "?hospitalid=" + hospitalId;
+                signUrl += "&userid=" + userId;
+                signUrl += "&drid=" + drid;
+                signUrl += "&mode=9";
+                String fullUrl = getFullUrl(signUrl);
+
+                String dstDir = mActivity.getFilesDir().getAbsolutePath();
+                String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
+                Utils.downFile(mActivity, fullUrl, dstPath);
+            } else if (ccfValue.startsWith("login_sign_")) {
+                String drid = ccfValue.substring(11);
+                String signUrl = "";
+                signUrl += "EmrScanServlet";
+                signUrl += "?hospitalid=" + hospitalId;
+                signUrl += "&userid=" + userId;
+                signUrl += "&drid=" + drid;
+                signUrl += "&mode=9";
+                String fullUrl = getFullUrl(signUrl);
+
+                String dstDir = mActivity.getFilesDir().getAbsolutePath();
+                String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
+                Utils.downFile(mActivity, fullUrl, dstPath);
+            }
+            */
         }
     }
 
