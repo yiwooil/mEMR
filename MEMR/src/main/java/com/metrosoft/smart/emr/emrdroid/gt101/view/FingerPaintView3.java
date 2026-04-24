@@ -50,9 +50,10 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
     private Bitmap mFirstBitmap;
     private Bitmap mSignBitmap;
 	private Bitmap mLoginDrSignBitmap; // 2024.05.30 WOOIL - 로그인의사 사인(>주치의)
-    private Bitmap  mBitmap;
-    private Canvas  mCanvas;
-    private Paint   mBitmapPaint;
+	private Bitmap mLogin_SignBitmap; // 2026.04.24 WOOIL - 로그인 사용자 사인
+    private Bitmap mBitmap;
+    private Canvas mCanvas;
+    private Paint mBitmapPaint;
     
     //private Bitmap mTextBitmap;
     //private Canvas mTextCanvas;
@@ -242,6 +243,10 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 		if(mLoginDrSignBitmap!=null){
 			mLoginDrSignBitmap.recycle();
 			mLoginDrSignBitmap = null;
+		}
+		if(mLogin_SignBitmap!=null){
+			mLogin_SignBitmap.recycle();
+			mLogin_SignBitmap = null;
 		}
 
 		/*
@@ -565,7 +570,7 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 
     			if(ccfValue.startsWith("sign_")) {
 					// 의사 사인을 출력한다.
-					if (mSignBitmap == null) {
+					if(mSignBitmap==null){
 						// 한번만 읽기 위한 코딩
 						String drid = ccfValue.substring(5);
 						String dstDir = mContext.getFilesDir().getAbsolutePath();
@@ -649,7 +654,50 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 							RectF rectF = new RectF(x, y, x + imgW, y+ imgH);
 							canvas.drawBitmap(mLoginDrSignBitmap, null, rectF, null);
 						}
-    			}else{
+    			}else if(ccfValue.startsWith("login_sign_")){
+					// 로그인 사용자 사인을 출력한다.
+					if(mLogin_SignBitmap==null) {
+						// 한번만 읽기 위한 코딩
+						String drid = ccfValue.substring(11);
+						String dstDir = mContext.getFilesDir().getAbsolutePath();
+						String pathName = dstDir + File.separator + "Sign" + File.separator + drid;
+						Bitmap bm = BitmapFactory.decodeFile(pathName);
+						if(bm==null){
+							// 사인 이미지가 없음.
+						}else{
+							float imgW = 120f*ratioW*scale;
+							float imgH = 40f*ratioH*scale;
+							if(autoFit){
+								// 2025.09.01 WOOIL - 사인이미지의 크기를 MEE에서 조절한 크기로 맞춘다.
+								imgW = width;// * ratioW * scale;
+								imgH = height;// * ratioH * scale;
+							}
+							mLogin_SignBitmap = Bitmap.createScaledBitmap(bm, (int)imgW, (int)imgH, true);
+							// 2022.05.04 WOOIL - 흰색을 투명하게 만들자
+							mLogin_SignBitmap = makeTransparent(mLogin_SignBitmap);
+							// 2026.03.20 WOOIL - 진하게
+							mLogin_SignBitmap = enhanceBitmap(mLogin_SignBitmap);
+							// 2026.03.20 WOOIL - 굵게
+							mLogin_SignBitmap = expandStroke(mLogin_SignBitmap, 1);
+							bm.recycle();
+						}
+					}
+					if(mLogin_SignBitmap!=null){
+						//canvas.drawBitmap(mLoginDrSignBitmap, x, y, null);
+						// 2026.03.20 WOOIL - 사인도 같이 확대 축소되게
+						float imgW = 120f;
+						float imgH = 40f;
+						if(autoFit){
+							// 2025.09.01 WOOIL - 사인이미지의 크기를 MEE에서 조절한 크기로 맞춘다.
+							imgW = width;// * ratioW * scale;
+							imgH = height;// * ratioH * scale;
+						}
+						imgW *= ratioW * scale;
+						imgH *= ratioH * scale;
+						RectF rectF = new RectF(x, y, x + imgW, y+ imgH);
+						canvas.drawBitmap(mLogin_SignBitmap, null, rectF, null);
+					}
+				}else{
 	    			Rect rect = new Rect();
 	    			String[] ccfV = (ccfValue+System.getProperty("line.separator")).split(System.getProperty("line.separator"));
 	    			// 2024.04.26 WOOIL - 글자를 박스안에 출력되도록 제한.
