@@ -161,6 +161,14 @@ public class PdfInkPdfSaver {
         RectF pdfRect = sign.pdfRect;
         PDImageXObject imageXObject = LosslessFactory.createFromImage(document, sign.bitmap);
 
+        // PdfInkSignView의 pdfRect는 top > bottom 형태로 관리됨.
+        // PDFBox drawImage()는 left, lowerY, width, height 기준이므로
+        // 반드시 bottom을 Y 좌표로 사용하고 높이는 top-bottom으로 계산한다.
+        float x = Math.min(pdfRect.left, pdfRect.right);
+        float y = Math.min(pdfRect.top, pdfRect.bottom);
+        float w = Math.abs(pdfRect.right - pdfRect.left);
+        float h = Math.abs(pdfRect.top - pdfRect.bottom);
+
         PDPageContentStream cs = null;
         try {
             cs = new PDPageContentStream(
@@ -173,10 +181,10 @@ public class PdfInkPdfSaver {
 
             cs.drawImage(
                     imageXObject,
-                    pdfRect.left,
-                    pdfRect.bottom,
-                    pdfRect.width(),
-                    pdfRect.height()
+                    x,
+                    y,
+                    w,
+                    h
             );
         } finally {
             if (cs != null) cs.close();

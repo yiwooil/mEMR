@@ -63,6 +63,7 @@ import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormTextFieldSpec;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfRenderedFormField;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfSignatureInputView;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.EmrSettingsUtil;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Utils;
@@ -95,6 +96,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private final int CALL_CAMERA = 1;
 
     private static final int REQ_SELECT_DOCTOR = 2001;
+    private static final int REQ_SELECT_DEPT = 2002;
 
     private Activity mActivity;
 
@@ -181,6 +183,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private EditText mApplyExdt; // 2026.02.02 WOOIL - 사용자가 수정하여 저장할 수 있게
     private TextView mApplyDrnmLabel; // 2026.02.10 WOOIL - 사용자가 의사를 수정할 수 있게
     private EditText mApplyDrnm; // 2026.02.10 WOOIL - 사용자가 의사를 수정할 수 있게
+    private TextView mApplyDptnmLabel; // 2026.04.27 WOOIL - 사용자가 진료과를 수정할 수 있게
+    private EditText mApplyDptnm; // 2026.07.27 WOOIL - 사용자가 진료과를 수정할 수 있게
 
     private boolean mIsPdfConsent = false; // 2026.04.14 WOOIL - PDF용 추가
     private ArrayList<PdfInkSignView> mPdfViewList = new ArrayList<PdfInkSignView>(); // 2026.04.14 WOOIL - PDF용 추가
@@ -398,6 +402,22 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             }
         });
 
+        // 진료과 입력칸
+        mApplyDptnmLabel = (TextView) findViewById(R.id.apply_dptnm_label);
+        mApplyDptnmLabel.setVisibility(View.GONE); // 일단 안보이게...
+        mApplyDptnm = (EditText) findViewById(R.id.apply_dptnm);
+        mApplyDptnm.setText("");
+        mApplyDptnm.setVisibility(View.GONE); // 일단 안보이게...
+        // 키보드 안 뜨게 (직접 입력 방지)
+        mApplyDptnm.setFocusable(false);
+        mApplyDptnm.setClickable(true);
+        mApplyDptnm.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDptnmDialog();
+            }
+        });
+
 
         if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
             setButton1(false, "", BUTTON_TYPE_NONE);
@@ -510,6 +530,11 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         setApplyDrnm(value.getValue());
                         mApplyDrnmLabel.setVisibility(View.VISIBLE); // 의사 정보를 보여주고 선택하는 창을 띄우자
                         mApplyDrnm.setVisibility(View.VISIBLE); // 의사 정보를 보여주고 선택하는 창을 띄우자
+                    } else if ("dptcd".equalsIgnoreCase(field) || "dptnm".equalsIgnoreCase(field)) {
+                        // 진료과를 보여준다.
+                        setApplyDptnm(value.getValue());
+                        mApplyDptnmLabel.setVisibility(View.VISIBLE); // 진료과 정보를 보여주고 선택하는 창을 띄우자
+                        mApplyDptnm.setVisibility(View.VISIBLE); // 진료과 정보를 보여주고 선택하는 창을 띄우자
                     }
                 }
             });
@@ -531,6 +556,12 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             showPdfTextFieldEditDialog(pdfView, field);
                         }
                     });
+                }
+            });
+            pdfView.setOnPdfSignatureFieldClickListener(new PdfInkSignView.OnPdfSignatureFieldClickListener() {
+                @Override
+                public void onPdfSignatureFieldClick(final PdfRenderedFormField field) {
+                    showPdfSignatureFieldEditDialog(pdfView, field);
                 }
             });
             mPdfViewList.add(pdfView);
@@ -854,8 +885,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             String applyDrnm = mApplyDrnm.getText().toString();
             Intent intent = new Intent(ConsentForm.this, CommonCode.class);
             intent.putExtra("mode", CommonCode.DOCT_CODE);   // 의사선택
-            intent.putExtra("dptcd", "");                // 의사선택 시 진료과 필터
-            intent.putExtra("default", applyDrnm);               // 기본 선택(현재 의사)
+            intent.putExtra("dptcd", "");              // 의사선택 시 진료과 필터
+            intent.putExtra("default", applyDrnm);           // 기본 선택(현재 의사)
 
             startActivityForResult(intent, REQ_SELECT_DOCTOR);
         } catch (Exception ex) {
@@ -869,6 +900,30 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             @Override
             public void run() {
                 mApplyDrnm.setText(applyDrnm);
+            }
+        });
+    }
+
+    // 2026.04.27 WOOIL - 진료과 변경
+    private void showDptnmDialog() {
+        try {
+            String applyDptnm = mApplyDptnm.getText().toString();
+            Intent intent = new Intent(ConsentForm.this, CommonCode.class);
+            intent.putExtra("mode", CommonCode.DEPT_CODE);   // 진료과선택
+            intent.putExtra("default", applyDptnm);           // 기본 선택(현재 의사)
+
+            startActivityForResult(intent, REQ_SELECT_DEPT);
+        } catch (Exception ex) {
+            Log.d("EmrDroid", "showDrnmDialog error=" + ex.getMessage());
+            showSimpleDialogThread(ex.getMessage());
+        }
+    }
+
+    private void setApplyDptnm(final String applyDptnm){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mApplyDptnm.setText(applyDptnm);
             }
         });
     }
@@ -2304,34 +2359,77 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             final String gdrlcid = data.getStringExtra("gdrlcid"); // 면허번호
                             final String sdrlcid = data.getStringExtra("sdrlcid"); // 전문의 번호
                             final String drsign = data.getStringExtra("drsign"); // 의사 사인 정보
+                            final String dptcd = data.getStringExtra("dptcd"); // 의사의 진료과 코드
+                            final String dptnm = data.getStringExtra("dptnm"); // 의사의 진료과 명
 
-                            if ("".equalsIgnoreCase(drid)) return;
+                            if (!"".equalsIgnoreCase(drid)) {
 
-                            setApplyDrnm(drnm);
-                            for (int i = 0; i < mPageCount; i++) {
-                                boolean changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid);
+                                setApplyDrnm(drnm);
+                                for (int i = 0; i < mPageCount; i++) {
+                                    boolean changed = false;
+                                    if ("".equalsIgnoreCase(dptcd) || "".equalsIgnoreCase(dptnm)) {
+                                        changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid);
+                                    } else {
+                                        changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid, dptcd, dptnm);
+                                    }
 
-                                boolean changed_drsign = mMyViewList.get(i).injectCcfValue4DrSign(drsign);
-                                if (changed_drsign){
-                                    // 의사 사인 이미지를 새로 불러온다.
-                                    String hospitalId = getHospitalId();
-                                    String userId = getUserId();
+                                    boolean changed_drsign = mMyViewList.get(i).injectCcfValue4DrSign(drsign);
+                                    if (changed_drsign) {
+                                        // 의사 사인 이미지를 새로 불러온다.
+                                        String hospitalId = getHospitalId();
+                                        String userId = getUserId();
 
-                                    String signUrl = "";
-                                    signUrl += "EmrScanServlet";
-                                    signUrl += "?hospitalid=" + hospitalId;
-                                    signUrl += "&userid=" + userId;
-                                    signUrl += "&drid=" + drid;
-                                    signUrl += "&mode=9";
-                                    String fullUrl = getFullUrl(signUrl);
+                                        String signUrl = "";
+                                        signUrl += "EmrScanServlet";
+                                        signUrl += "?hospitalid=" + hospitalId;
+                                        signUrl += "&userid=" + userId;
+                                        signUrl += "&drid=" + drid;
+                                        signUrl += "&mode=9";
+                                        String fullUrl = getFullUrl(signUrl);
 
-                                    String dstDir = mActivity.getFilesDir().getAbsolutePath();
-                                    String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
-                                    Utils.downFile(mActivity, fullUrl, dstPath);
+                                        String dstDir = mActivity.getFilesDir().getAbsolutePath();
+                                        String dstPath = dstDir + File.separator + "Sign" + File.separator + drid;
+                                        Utils.downFile(mActivity, fullUrl, dstPath);
+                                    }
+
+                                    if (changed || changed_drsign) mMyViewList.get(i).postInvalidate();
                                 }
 
-                                if (changed || changed_drsign) mMyViewList.get(i).postInvalidate();
                             }
+                        } catch (Exception ex) {
+                            showSimpleDialogThread(ex.getLocalizedMessage());
+                        }
+
+                        // 종료
+                        handler.post(new Runnable() {
+                            public void run() {
+                                mDialog.dismiss();
+                            }
+                        });
+                    }
+                }).start();
+            }
+        }
+        if (requestCode == REQ_SELECT_DEPT) {
+            if (resultCode == RESULT_OK && data != null) {
+                //mDialog = ProgressDialog.show(this, "", "의사 정보를 변경하는 중입니다.", true);
+                showProgressDialog("진료과 정보를 변경하는 중입니다.");
+                new Thread(new Runnable() {
+                    public void run() {
+                        try {
+                            final String dptcd = data.getStringExtra("code"); // 진료과코드
+                            final String dptnm = data.getStringExtra("codenm"); // 진료과명
+
+                            if (!"".equalsIgnoreCase(dptcd)) {
+
+                                setApplyDptnm(dptnm);
+                                for (int i = 0; i < mPageCount; i++) {
+                                    boolean changed = mMyViewList.get(i).injectCcfValue4Dept(dptcd, dptnm);
+                                    if (changed) mMyViewList.get(i).postInvalidate();
+                                }
+
+                            }
+
                         } catch (Exception ex) {
                             showSimpleDialogThread(ex.getLocalizedMessage());
                         }
@@ -3208,6 +3306,68 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         });
 
         builder.show();
+    }
+
+    private void showPdfSignatureFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
+
+        if (pdfView == null || field == null) {
+            return;
+        }
+
+        if (field.readOnly) {
+            return;
+        }
+
+        final PdfSignatureInputView signView = new PdfSignatureInputView(ConsentForm.this);
+
+        int height = (int) Utils.getPixelFromDip(ConsentForm.this, 220);
+        signView.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                height
+        ));
+
+        LinearLayout layout = new LinearLayout(ConsentForm.this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(20, 20, 20, 20);
+        layout.addView(signView);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(ConsentForm.this);
+        builder.setTitle("서명 입력");
+        builder.setView(layout);
+
+        builder.setPositiveButton("확인", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+
+                Bitmap signBitmap = signView.getSignatureBitmap();
+
+                if (signBitmap == null) {
+                    Toast.makeText(mActivity, "서명 이미지 생성 실패", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                pdfView.setSignatureBitmapToField(field, signBitmap);
+            }
+        });
+
+        builder.setNegativeButton("취소", null);
+        builder.setNeutralButton("지우기", null);
+
+        final AlertDialog dialog = builder.create();
+
+        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface d) {
+                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        signView.clear();
+                    }
+                });
+            }
+        });
+
+        dialog.show();
     }
 
 }

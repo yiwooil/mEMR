@@ -834,6 +834,50 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 		return changed;
 	}
 
+	public boolean injectCcfValue4Doctor(String drid, String drnm, String drnm_eng, String gdrlcid, String sdrlcid, String dptcd, String dptnm) {
+		// 2026.02.11 WOOIL - 외부(ConsentForm)에서 값을 사용자에게 입력받아 이곳으로 넘긴다.
+		boolean changed = false;
+		if(mCcfValues!=null) {
+			int count = mCcfValues.getCount();
+			for (int i = 0; i < count; i++) {
+				String field = mCcfValues.getField(i);
+				String value = mCcfValues.getValue(i);
+				if ("drnm".equalsIgnoreCase(field)) {
+					if (!drnm.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, drnm);
+					}
+				} else if ("drnm_eng".equalsIgnoreCase(field)) {
+					if (!drnm_eng.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, drnm_eng);
+					}
+				} else if ("gdrlcid".equalsIgnoreCase(field)) {
+					if (!gdrlcid.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, gdrlcid);
+					}
+				} else if ("sdrlcid".equalsIgnoreCase(field)) {
+					if (!sdrlcid.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, sdrlcid);
+					}
+				} else if ("dptcd".equalsIgnoreCase(field)) {
+					if (!dptcd.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, dptcd);
+					}
+				} else if ("dptnm".equalsIgnoreCase(field)) {
+					if (!dptnm.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, dptnm);
+					}
+				}
+			}
+		}
+		return changed;
+	}
+
 	public boolean injectCcfValue4DrSign(String drsign) {
 		// 2026.02.11 WOOIL - 외부(ConsentForm)에서 값을 사용자에게 입력받아 이곳으로 넘긴다.
 		boolean changed = false;
@@ -851,6 +895,30 @@ public class FingerPaintView3 extends android.support.v7.widget.AppCompatImageVi
 							mSignBitmap.recycle();
 							mSignBitmap = null;
 						}
+					}
+				}
+			}
+		}
+		return changed;
+	}
+
+	public boolean injectCcfValue4Dept(String dptcd, String dptnm) {
+		// 2026.04.27 WOOIL - 외부(ConsentForm)에서 값을 사용자에게 입력받아 이곳으로 넘긴다.
+		boolean changed = false;
+		if(mCcfValues!=null) {
+			int count = mCcfValues.getCount();
+			for (int i = 0; i < count; i++) {
+				String field = mCcfValues.getField(i);
+				String value = mCcfValues.getValue(i);
+				if ("dptcd".equalsIgnoreCase(field)) {
+					if (!dptcd.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, dptcd);
+					}
+				} else if ("dptnm".equalsIgnoreCase(field)) {
+					if (!dptnm.equalsIgnoreCase(value)) {
+						changed = true;
+						mCcfValues.putValue(i, dptnm);
 					}
 				}
 			}
