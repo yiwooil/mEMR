@@ -151,6 +151,16 @@ public class PdfInkSignView extends AppCompatImageView {
     // text field 클릭 시 Activity 쪽으로 전달하기 위한 리스너
     private OnPdfFieldEditListener mOnPdfFieldEditListener;
 
+    public interface OnPdfSignatureFieldClickListener {
+        void onPdfSignatureFieldClick(PdfRenderedFormField field);
+    }
+
+    private OnPdfSignatureFieldClickListener mOnPdfSignatureFieldClickListener;
+
+    public void setOnPdfSignatureFieldClickListener(OnPdfSignatureFieldClickListener listener) {
+        this.mOnPdfSignatureFieldClickListener = listener;
+    }
+
     // 탭 판정용
     private float mDownX = 0f;
     private float mDownY = 0f;
@@ -1321,13 +1331,22 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("signature".equalsIgnoreCase(type)) {
 
-            canvas.drawRect(screenRect, shapePaint);
+            // readonly 필드가 아니면 초록색 테두리를 그림는 공통사항 작용
+            //if (!field.readOnly) {
+            //    canvas.drawRect(screenRect, shapePaint);
+            //}
 
-            String text = safe(field.value);
-            if ("".equals(text)) {
-                text = "[SIGN]";
-            }
-            canvas.drawText(text, x, y, formTextPaint);
+            // signature 필드는 배경을 연한 노란색으로 칠한다.
+            //Paint signBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            //signBgPaint.setStyle(Paint.Style.FILL);
+            //signBgPaint.setColor(Color.rgb(255, 255, 210)); // 연한 노란색
+            //canvas.drawRect(screenRect, signBgPaint);
+
+            //String text = safe(field.value);
+            //if ("".equals(text)) {
+            //    text = "[SIGN]";
+            //}
+            //canvas.drawText(text, x, y, formTextPaint);
 
         } else {
             canvas.drawText(safe(field.value), x, y, formTextPaint);
@@ -1436,12 +1455,19 @@ public class PdfInkSignView extends AppCompatImageView {
                 return true;
             }
 
+            if ("signature".equalsIgnoreCase(type)) {
+                if (mOnPdfSignatureFieldClickListener != null) {
+                    mOnPdfSignatureFieldClickListener.onPdfSignatureFieldClick(field);
+                    return true;
+                }
+                return true;
+            }
+
             if ("text".equalsIgnoreCase(type)
                     || "combo".equalsIgnoreCase(type)
                     || "listbox".equalsIgnoreCase(type)
                     || "choice".equalsIgnoreCase(type)
-                    || "button".equalsIgnoreCase(type)
-                    || "signature".equalsIgnoreCase(type)) {
+                    || "button".equalsIgnoreCase(type)) {
 
                 if (mOnPdfFieldEditListener != null) {
                     mOnPdfFieldEditListener.onPdfTextFieldClick(field);
@@ -1467,5 +1493,21 @@ public class PdfInkSignView extends AppCompatImageView {
                 || "on".equalsIgnoreCase(v)
                 || "1".equalsIgnoreCase(v)
                 || "y".equalsIgnoreCase(v);
+    }
+
+    public void setSignatureBitmapToField(PdfRenderedFormField field, Bitmap bitmap) {
+        if (field == null || bitmap == null) return;
+
+        signatureOverlay.bitmap = bitmap;
+        signatureOverlay.visible = true;
+        signatureOverlay.pdfRect = new RectF(
+                field.pdfRect.left,
+                field.pdfRect.top,
+                field.pdfRect.right,
+                field.pdfRect.bottom
+        );
+
+        saveCurrentPageOverlay();
+        invalidate();
     }
 }

@@ -117,6 +117,9 @@ public class CommonCode extends MyActivity {
                     intent.putExtra("gdrlcid", (String) (mCommonCodeList.get(pos).get("gdrlcid"))); // 면허번호
                     intent.putExtra("sdrlcid", (String) (mCommonCodeList.get(pos).get("sdrlcid"))); // 전문의 번호
                     intent.putExtra("drsign", (String) (mCommonCodeList.get(pos).get("drsign"))); // 의사 사인 정보
+                    intent.putExtra("dptcd", (String) (mCommonCodeList.get(pos).get("dptcd"))); // 의사의 진료과코드
+                    intent.putExtra("dptnm", (String) (mCommonCodeList.get(pos).get("dptnm"))); // 의사의 진료과명
+
                 }
                 setResult(RESULT_OK, intent); // 추가 정보를 넣은 후 다시 인텐트를 반환합니다.
                 finish(); // 액티비티 종료
@@ -258,7 +261,8 @@ public class CommonCode extends MyActivity {
                     map.put("gdrlcid", ""); // 면허번호
                     map.put("sdrlcid", ""); // 전문의 번호
                     map.put("drsign", ""); // 의사 사인 정보
-                    map.put("dptcd", ""); // 진료과코드
+                    map.put("dptcd", ""); // 의사의 진료과코드
+                    map.put("dptnm", ""); // 의사의 진료과명
                     mCommonCodeList.add(map);
                     for (int i = 0; i < rs.getRecordCount(); i++) {
                         map = new HashMap<String, Object>();
@@ -269,7 +273,18 @@ public class CommonCode extends MyActivity {
                         map.put("gdrlcid", rs.getString(i, "gdrlcid")); // 면허번호
                         map.put("sdrlcid", rs.getString(i, "sdrlcid")); // 전문의 번호
                         map.put("drsign", rs.getString(i, "drsign")); // 의사 사인 정보
-                        map.put("dptcd", rs.getString(i, "dptcd")); // 진료과코드
+                        // 2026.04.28 WOOIL - 서버 모듈이 다 올라가기 전에 오류가 발생하는 것을 방지하기 위한 코딩임.
+                        //                    서버 모율이 다 올라가면 원상복구 하자.
+                        try {
+                            map.put("dptcd", rs.getString(i, "dptcd")); // 의사의 진료과코드
+                        } catch (Exception ex) {
+                            map.put("dptcd", ""); // 의사의 진료과코드
+                        }
+                        try {
+                            map.put("dptnm", rs.getString(i, "dptnm")); // 의사의 진료과명
+                        } catch (Exception ex) {
+                            map.put("dptnm", ""); // 의사의 진료과명
+                        }
                         mCommonCodeList.add(map);
                     }
                     mDoctorAllList.clear();

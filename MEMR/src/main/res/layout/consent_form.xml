@@ -362,16 +362,36 @@
 				android:textSize="@dimen/normal_text_size"
 				android:padding="6dip" />
 
+			<!-- 의사 변경 -->
 			<TextView
 				android:id="@+id/apply_drnm_label"
 				android:layout_width="wrap_content"
 				android:layout_height="wrap_content"
 				android:text="의사명"
 				android:textSize="@dimen/normal_text_size"
+				android:layout_marginLeft="8dip"
 				android:layout_marginRight="8dip" />
 
 			<EditText
 				android:id="@+id/apply_drnm"
+				android:layout_width="90dip"
+				android:layout_height="wrap_content"
+				android:singleLine="true"
+				android:textSize="@dimen/normal_text_size"
+				android:padding="6dip" />
+
+			<!-- 진료과 변경 -->
+			<TextView
+				android:id="@+id/apply_dptnm_label"
+				android:layout_width="wrap_content"
+				android:layout_height="wrap_content"
+				android:text="진료과"
+				android:textSize="@dimen/normal_text_size"
+				android:layout_marginLeft="8dip"
+				android:layout_marginRight="8dip" />
+
+			<EditText
+				android:id="@+id/apply_dptnm"
 				android:layout_width="90dip"
 				android:layout_height="wrap_content"
 				android:singleLine="true"

@@ -14,6 +14,8 @@ import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDType0Font;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
+import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceCharacteristicsDictionary;
@@ -24,6 +26,7 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictiona
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDTextField;
 
 import java.io.File;
@@ -105,6 +108,8 @@ public class PdfFormEditor {
                     String typeName = spec.typeName == null ? "" : spec.typeName.trim();
                     if ("checkbox".equalsIgnoreCase(typeName)) {
                         addCheckBoxField(document, acroForm, spec, listener);
+                    } else if ("signature".equalsIgnoreCase(typeName)) {
+                        addSignatureField(document, acroForm, spec, listener);
                     } else {
                         addTextField(document, acroForm, spec, listener);
                     }
@@ -384,6 +389,119 @@ public class PdfFormEditor {
     }
 
     /**
+     * 새 signature 필드 생성
+     * - PDF 전자서명용 signature field를 만든다.
+     * - 손글씨 bitmap 사인을 넣는 기능과는 별개이다.
+     */
+    private static void addSignatureField(
+            PDDocument document,
+            PDAcroForm acroForm,
+            PdfFormTextFieldSpec spec,
+            PdfErrorListener listener
+    ) throws Exception {
+
+        if (spec == null) return;
+        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
+        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
+
+        PDField existing = acroForm.getField(spec.fieldName);
+        if (existing != null) {
+            return;
+        }
+
+        if (listener != null) listener.onError(" s01");
+
+        PDPage page = document.getPage(spec.pageNo);
+        float pageHeight = page.getMediaBox().getHeight();
+
+        float pdfX = spec.x;
+        float pdfY = pageHeight - spec.y - spec.height;
+
+        if (listener != null) listener.onError(" s02");
+
+        PDSignatureField signatureField = new PDSignatureField(acroForm);
+        signatureField.setPartialName(spec.fieldName);
+        if (spec.readOnly) {
+            signatureField.setReadOnly(true);
+        }
+
+        if (listener != null) listener.onError(" s03");
+
+        PDAnnotationWidget widget = signatureField.getWidgets().get(0);
+
+        if (listener != null) listener.onError(" s04");
+
+        PDRectangle rect = new PDRectangle();
+        rect.setLowerLeftX(pdfX);
+        rect.setLowerLeftY(pdfY);
+        rect.setUpperRightX(pdfX + spec.width);
+        rect.setUpperRightY(pdfY + spec.height);
+
+        if (listener != null) listener.onError(" s05");
+
+        widget.setRectangle(rect);
+        if (listener != null) listener.onError(" s05-1");
+        widget.setPage(page);
+        if (listener != null) listener.onError(" s05-2");
+        //widget.setParent(signatureField);
+
+        if (listener != null) listener.onError(" s06");
+
+        try {
+            PDAppearanceCharacteristicsDictionary appearance =
+                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
+
+            // 연한 노란색 (RGB)
+            PDColor bgColor = new PDColor(
+                    new float[] {1.0f, 1.0f, 0.82f},   // R, G, B (0~1)
+                    PDDeviceRGB.INSTANCE
+            );
+            appearance.setBackground(bgColor);
+
+            // 테두리 색
+            PDColor borderColor = new PDColor(
+                    new float[] { 0.0f, 0.7f, 0.0f },
+                    PDDeviceRGB.INSTANCE
+            );
+
+            appearance.setBorderColour(borderColor);
+
+            widget.setAppearanceCharacteristics(appearance);
+
+            // PdfRenderer / 일반 뷰어에서 항상 보이도록 appearance stream 직접 생성
+            widget.setAppearance(createSignatureAppearance(document, rect));
+
+        } catch (Exception ignore) {
+        }
+
+        if (listener != null) listener.onError(" s07");
+
+        try {
+            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
+            border.setWidth(1);
+            widget.setBorderStyle(border);
+        } catch (Exception ignore) {
+        }
+
+        if (listener != null) listener.onError(" s08");
+
+        try {
+            widget.getCOSObject().setString(COSName.DA, DEFAULT_DA);
+        } catch (Exception ignore) {
+        }
+
+        if (listener != null) listener.onError(" s09");
+
+        addFieldToAcroFormRaw(acroForm, signatureField);
+
+        if (listener != null) listener.onError(" s10");
+
+        page.getAnnotations().add(widget);
+
+        if (listener != null) listener.onError(" s11");
+    }
+
+    /**
      * 기존/신규 필드에 값 채우기
      */
     private static void fillFieldValues(
@@ -398,6 +516,12 @@ public class PdfFormEditor {
 
             PDField field = acroForm.getField(fieldName);
             if (field == null) {
+                continue;
+            }
+
+            if (field instanceof PDSignatureField) {
+                // signature field는 text처럼 값을 넣지 않는다.
+                // field.setValue(String)을 호출하면 멈추거나 오류가 날 수 있다.
                 continue;
             }
 
@@ -668,6 +792,67 @@ public class PdfFormEditor {
             } catch (Exception ignore) {
             }
         }
+    }
+
+    /**
+     * signature field의 normal appearance를 만든다.
+     * - Android PdfRenderer에서도 배경색이 보이도록 appearance stream을 직접 생성한다.
+     */
+    private static PDAppearanceDictionary createSignatureAppearance(
+            PDDocument document,
+            PDRectangle rect
+    ) throws Exception {
+
+        PDAppearanceStream normalStream = createSignatureAppearanceStream(document, rect);
+
+        PDAppearanceDictionary ap = new PDAppearanceDictionary();
+        ap.setNormalAppearance(normalStream);
+
+        return ap;
+    }
+
+    /**
+     * signature field 1개의 appearance stream 생성
+     */
+    private static PDAppearanceStream createSignatureAppearanceStream(
+            PDDocument document,
+            PDRectangle rect
+    ) throws Exception {
+
+        PDAppearanceStream stream = new PDAppearanceStream(document);
+        stream.setResources(new PDResources());
+
+        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
+        stream.setBBox(bbox);
+
+        PDPageContentStream cs = null;
+        try {
+            cs = new PDPageContentStream(document, stream);
+
+            float w = rect.getWidth();
+            float h = rect.getHeight();
+
+            // 연한 노란색 배경
+            cs.setNonStrokingColor(255, 255, 210);
+            cs.addRect(0, 0, w, h);
+            cs.fill();
+
+            // 녹색 테두리
+            cs.setStrokingColor(0, 180, 0);
+            cs.setLineWidth(1f);
+            cs.addRect(0.5f, 0.5f, w - 1f, h - 1f);
+            cs.stroke();
+
+        } finally {
+            if (cs != null) {
+                try {
+                    cs.close();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+
+        return stream;
     }
 
 }
