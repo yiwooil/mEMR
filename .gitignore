@@ -6,6 +6,7 @@
 /build/
 /app/build/
 /*/build/
+/*/release/
 
 # Gradle cache
 .gradle/
