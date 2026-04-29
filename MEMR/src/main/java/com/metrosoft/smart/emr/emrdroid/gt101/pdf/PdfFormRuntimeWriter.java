@@ -13,7 +13,7 @@ public class PdfFormRuntimeWriter {
             File srcPdf,
             File outPdf,
             Map<String, String> valuesToFill,
-            List<PdfSignatureSpec> signatures,
+            List<PdfSignSpec> signatures,
             boolean flattenAfterSave
     ) throws Exception {
 

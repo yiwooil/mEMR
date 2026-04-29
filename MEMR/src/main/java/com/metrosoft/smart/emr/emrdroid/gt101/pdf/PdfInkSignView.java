@@ -42,7 +42,7 @@ import java.util.List;
  * 주의:
  * - PdfRenderer는 Android 5.0(Lollipop) 이상에서만 동작한다.
  * - AcroForm field는 PdfFormFieldReader.readAllFields()에서 읽어온다.
- * - PdfRenderedFormField.type 값을 이용해 text/checkbox/radio/button/signature 등을 분기 표시한다.
+ * - PdfRenderedFormField.type 값을 이용해 text/checkbox/radio/button/sign 등을 분기 표시한다.
  */
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class PdfInkSignView extends AppCompatImageView {
@@ -50,7 +50,7 @@ public class PdfInkSignView extends AppCompatImageView {
     public static final int MODE_NONE = 0;
     public static final int MODE_PEN = 1;
     public static final int MODE_ERASER = 2;
-    public static final int MODE_MOVE_SIGNATURE = 3;
+    public static final int MODE_MOVE_SIGN = 3;
     public static final int MODE_EDIT = 4;
 
     // PDF 원본 페이지를 그릴 때 사용하는 Paint
@@ -60,7 +60,7 @@ public class PdfInkSignView extends AppCompatImageView {
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     // 서명 bitmap의 외곽 프레임용 Paint
-    private final Paint signatureFramePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint signFramePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     // PDF form field text 표시용 Paint
     private final Paint formTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -79,16 +79,17 @@ public class PdfInkSignView extends AppCompatImageView {
     private final List<PdfInkStroke> strokes = new ArrayList<PdfInkStroke>();
     private PdfInkStroke currentStroke;
 
-    // 현재 페이지의 서명 overlay
-    private PdfSignatureOverlay signatureOverlay = new PdfSignatureOverlay();
+    // 현재 페이지의 sign overlay들: key = sign field key
+    private final HashMap<String, PdfSignOverlay> mSignOverlays =
+            new HashMap<String, PdfSignOverlay>();
+
+    // 페이지별 sign overlay들
+    private final HashMap<Integer, HashMap<String, PdfSignOverlay>> mPageSigns =
+            new HashMap<Integer, HashMap<String, PdfSignOverlay>>();
 
     // 페이지별 stroke 저장
     private final HashMap<Integer, ArrayList<PdfInkStroke>> mPageStrokes =
             new HashMap<Integer, ArrayList<PdfInkStroke>>();
-
-    // 페이지별 signature 저장
-    private final HashMap<Integer, PdfSignatureOverlay> mPageSignatures =
-            new HashMap<Integer, PdfSignatureOverlay>();
 
     // PDF 내부에 원래 저장되어 있던 Ink Annotation
     private final List<PdfRenderedInkAnnotation> mRenderedAnnotations =
@@ -151,14 +152,14 @@ public class PdfInkSignView extends AppCompatImageView {
     // text field 클릭 시 Activity 쪽으로 전달하기 위한 리스너
     private OnPdfFieldEditListener mOnPdfFieldEditListener;
 
-    public interface OnPdfSignatureFieldClickListener {
-        void onPdfSignatureFieldClick(PdfRenderedFormField field);
+    public interface OnPdfSignFieldClickListener {
+        void onPdfSignFieldClick(PdfRenderedFormField field);
     }
 
-    private OnPdfSignatureFieldClickListener mOnPdfSignatureFieldClickListener;
+    private OnPdfSignFieldClickListener mOnPdfSignFieldClickListener;
 
-    public void setOnPdfSignatureFieldClickListener(OnPdfSignatureFieldClickListener listener) {
-        this.mOnPdfSignatureFieldClickListener = listener;
+    public void setOnPdfSignFieldClickListener(OnPdfSignFieldClickListener listener) {
+        this.mOnPdfSignFieldClickListener = listener;
     }
 
     // 탭 판정용
@@ -182,9 +183,9 @@ public class PdfInkSignView extends AppCompatImageView {
         strokePaint.setStrokeCap(Paint.Cap.ROUND);
         strokePaint.setStrokeJoin(Paint.Join.ROUND);
 
-        signatureFramePaint.setStyle(Paint.Style.STROKE);
-        signatureFramePaint.setStrokeWidth(2f);
-        signatureFramePaint.setColor(Color.argb(180, 50, 50, 50));
+        signFramePaint.setStyle(Paint.Style.STROKE);
+        signFramePaint.setStrokeWidth(2f);
+        signFramePaint.setColor(Color.argb(180, 50, 50, 50));
 
         formTextPaint.setColor(Color.BLACK);
         formTextPaint.setStyle(Paint.Style.FILL);
@@ -249,18 +250,29 @@ public class PdfInkSignView extends AppCompatImageView {
         return strokes;
     }
 
-    public PdfSignatureOverlay getCurrentPageSignatureOverlay() {
-        return signatureOverlay;
-    }
-
     public HashMap<Integer, ArrayList<PdfInkStroke>> getAllPageStrokes() {
         saveCurrentPageOverlay();
         return mPageStrokes;
     }
 
-    public HashMap<Integer, PdfSignatureOverlay> getAllPageSignatures() {
+    public HashMap<String, PdfSignOverlay> getCurrentPageSignOverlays() {
         saveCurrentPageOverlay();
-        return mPageSignatures;
+
+        HashMap<String, PdfSignOverlay> result = new HashMap<String, PdfSignOverlay>();
+
+        for (String key : mSignOverlays.keySet()) {
+            PdfSignOverlay overlay = mSignOverlays.get(key);
+            if (overlay == null || !overlay.visible) continue;
+
+            result.put(key, overlay.copyShallow());
+        }
+
+        return result;
+    }
+
+    public HashMap<Integer, HashMap<String, PdfSignOverlay>> getAllPageSignOverlays() {
+        saveCurrentPageOverlay();
+        return mPageSigns;
     }
 
     public float getScaleFactor() {
@@ -294,10 +306,10 @@ public class PdfInkSignView extends AppCompatImageView {
     public void clearAllOverlays() {
         strokes.clear();
         currentStroke = null;
-        signatureOverlay = new PdfSignatureOverlay();
+        mSignOverlays.clear();
 
         mPageStrokes.clear();
-        mPageSignatures.clear();
+        mPageSigns.clear();
 
         mRenderedAnnotations.clear();
         mRenderedFormFields.clear();
@@ -313,7 +325,7 @@ public class PdfInkSignView extends AppCompatImageView {
     public void clearCurrentPageOverlay() {
         strokes.clear();
         currentStroke = null;
-        signatureOverlay = new PdfSignatureOverlay();
+        mSignOverlays.clear();
 
         saveCurrentPageOverlay();
         invalidate();
@@ -469,7 +481,7 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     /**
-     * 현재 페이지의 overlay(stroke / signature)를 페이지별 저장소에 저장한다.
+     * 현재 페이지의 overlay(stroke / sign)를 페이지별 저장소에 저장한다.
      */
     private void saveCurrentPageOverlay() {
         ArrayList<PdfInkStroke> copiedStrokes = new ArrayList<PdfInkStroke>();
@@ -478,10 +490,20 @@ public class PdfInkSignView extends AppCompatImageView {
         }
         mPageStrokes.put(currentPageIndex, copiedStrokes);
 
-        if (signatureOverlay != null && signatureOverlay.visible) {
-            mPageSignatures.put(currentPageIndex, signatureOverlay.copyShallow());
+        HashMap<String, PdfSignOverlay> copiedSigns =
+                new HashMap<String, PdfSignOverlay>();
+
+        for (String key : mSignOverlays.keySet()) {
+            PdfSignOverlay overlay = mSignOverlays.get(key);
+            if (overlay == null || !overlay.visible) continue;
+
+            copiedSigns.put(key, overlay.copyShallow());
+        }
+
+        if (copiedSigns.size() > 0) {
+            mPageSigns.put(currentPageIndex, copiedSigns);
         } else {
-            mPageSignatures.remove(currentPageIndex);
+            mPageSigns.remove(currentPageIndex);
         }
     }
 
@@ -499,33 +521,17 @@ public class PdfInkSignView extends AppCompatImageView {
             }
         }
 
-        PdfSignatureOverlay savedSign = mPageSignatures.get(pageIndex);
-        if (savedSign != null) {
-            signatureOverlay = savedSign.copyShallow();
-        } else {
-            signatureOverlay = new PdfSignatureOverlay();
+        mSignOverlays.clear();
+
+        HashMap<String, PdfSignOverlay> savedSigns = mPageSigns.get(pageIndex);
+        if (savedSigns != null) {
+            for (String key : savedSigns.keySet()) {
+                PdfSignOverlay overlay = savedSigns.get(key);
+                if (overlay == null) continue;
+
+                mSignOverlays.put(key, overlay.copyShallow());
+            }
         }
-    }
-
-    /**
-     * 서명 bitmap을 현재 페이지 가운데에 배치한다.
-     */
-    public void setSignatureBitmap(Bitmap bitmap, float desiredWidthPx, float desiredHeightPx) {
-        signatureOverlay.bitmap = bitmap;
-        signatureOverlay.visible = (bitmap != null);
-
-        if (bitmap != null) {
-            RectF pageRect = getPageDrawRect();
-
-            float left = pageRect.centerX() - desiredWidthPx / 2f;
-            float top = pageRect.centerY() - desiredHeightPx / 2f;
-            RectF screenRect = new RectF(left, top, left + desiredWidthPx, top + desiredHeightPx);
-
-            signatureOverlay.pdfRect = screenRectToPdfRect(screenRect);
-        }
-
-        saveCurrentPageOverlay();
-        invalidate();
     }
 
     /**
@@ -566,10 +572,16 @@ public class PdfInkSignView extends AppCompatImageView {
 
         drawDebugText(canvas);
 
-        if (signatureOverlay.visible && signatureOverlay.bitmap != null && !signatureOverlay.bitmap.isRecycled()) {
-            RectF screenRect = pdfRectToScreenRect(signatureOverlay.pdfRect);
-            canvas.drawBitmap(signatureOverlay.bitmap, null, screenRect, null);
-            canvas.drawRect(screenRect, signatureFramePaint);
+        for (String key : mSignOverlays.keySet()) {
+            PdfSignOverlay overlay = mSignOverlays.get(key);
+            if (overlay == null) continue;
+            if (!overlay.visible) continue;
+            if (overlay.bitmap == null || overlay.bitmap.isRecycled()) continue;
+            if (overlay.pdfRect == null) continue;
+
+            RectF screenRect = pdfRectToScreenRect(overlay.pdfRect);
+            canvas.drawBitmap(overlay.bitmap, null, screenRect, null);
+            canvas.drawRect(screenRect, signFramePaint);
         }
     }
 
@@ -940,8 +952,8 @@ public class PdfInkSignView extends AppCompatImageView {
             case MODE_ERASER:
                 return handleEraser(event, x, y);
 
-            case MODE_MOVE_SIGNATURE:
-                return handleMoveSignature(event, x, y);
+            case MODE_MOVE_SIGN:
+                return handleMoveSign(event, x, y);
 
             case MODE_EDIT:
                 return handleEditModeTap(event, x, y);
@@ -998,12 +1010,14 @@ public class PdfInkSignView extends AppCompatImageView {
 
             eraseNearestStroke(pdfPoint.x, pdfPoint.y, eraserHitPdf);
 
-            if (signatureOverlay.visible) {
-                RectF screenRect = pdfRectToScreenRect(signatureOverlay.pdfRect);
+            /* sign 필드는 지우개로 삭제되지 않게 처리
+            if (signOverlay.visible) {
+                RectF screenRect = pdfRectToScreenRect(signOverlay.pdfRect);
                 if (isNearRect(screenRect, x, y, eraserHitPx)) {
-                    signatureOverlay.visible = false;
+                    signOverlay.visible = false;
                 }
             }
+            */
 
             saveCurrentPageOverlay();
             invalidate();
@@ -1015,45 +1029,7 @@ public class PdfInkSignView extends AppCompatImageView {
     /**
      * 서명 이동 모드 처리
      */
-    private boolean handleMoveSignature(MotionEvent event, float x, float y) {
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN: {
-                if (!signatureOverlay.visible) return false;
-
-                RectF signScreenRect = pdfRectToScreenRect(signatureOverlay.pdfRect);
-                if (signScreenRect.contains(x, y)) {
-                    lastTouchX = x;
-                    lastTouchY = y;
-                    return true;
-                }
-                return false;
-            }
-
-            case MotionEvent.ACTION_MOVE: {
-                if (!signatureOverlay.visible) return false;
-
-                float dxScreen = x - lastTouchX;
-                float dyScreen = y - lastTouchY;
-
-                RectF pageRect = getPageDrawRect();
-                float dxPdf = dxScreen * currentPdfPageWidth / pageRect.width();
-                float dyPdf = -dyScreen * currentPdfPageHeight / pageRect.height();
-
-                signatureOverlay.pdfRect.offset(dxPdf, dyPdf);
-
-                lastTouchX = x;
-                lastTouchY = y;
-
-                saveCurrentPageOverlay();
-                invalidate();
-                return true;
-            }
-
-            case MotionEvent.ACTION_UP:
-            case MotionEvent.ACTION_CANCEL:
-                saveCurrentPageOverlay();
-                return true;
-        }
+    private boolean handleMoveSign(MotionEvent event, float x, float y) {
         return false;
     }
 
@@ -1329,24 +1305,18 @@ public class PdfInkSignView extends AppCompatImageView {
             }
             canvas.drawText(text, x, y, formTextPaint);
 
-        } else if ("signature".equalsIgnoreCase(type)) {
+        } else if ("sign".equalsIgnoreCase(type)) {
 
-            // readonly 필드가 아니면 초록색 테두리를 그림는 공통사항 작용
-            //if (!field.readOnly) {
-            //    canvas.drawRect(screenRect, shapePaint);
-            //}
+            // sign field는 PDF field에 설정된 색상으로 테두리를 그림
+            // field.colorArgb는 PdfFormFieldReader에서 읽어온 border 색상 또는 기본 색상이라고 가정
+            if (field.colorArgb != 0) {
+                Paint signBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                signBorderPaint.setStyle(Paint.Style.STROKE);
+                signBorderPaint.setColor(field.colorArgb);
+                signBorderPaint.setStrokeWidth(2f);
 
-            // signature 필드는 배경을 연한 노란색으로 칠한다.
-            //Paint signBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            //signBgPaint.setStyle(Paint.Style.FILL);
-            //signBgPaint.setColor(Color.rgb(255, 255, 210)); // 연한 노란색
-            //canvas.drawRect(screenRect, signBgPaint);
-
-            //String text = safe(field.value);
-            //if ("".equals(text)) {
-            //    text = "[SIGN]";
-            //}
-            //canvas.drawText(text, x, y, formTextPaint);
+                canvas.drawRect(screenRect, signBorderPaint);
+            }
 
         } else {
             canvas.drawText(safe(field.value), x, y, formTextPaint);
@@ -1363,6 +1333,27 @@ public class PdfInkSignView extends AppCompatImageView {
      */
     private String safe(String s) {
         return s == null ? "" : s;
+    }
+
+    private String getSignFieldKey(PdfRenderedFormField field) {
+        if (field == null) return "";
+
+        String name = safe(field.name).trim();
+        if (!"".equals(name)) {
+            return name;
+        }
+
+        if (field.pdfRect == null) return "";
+
+        return "rect_"
+                + Math.round(field.pdfRect.left) + "_"
+                + Math.round(field.pdfRect.top) + "_"
+                + Math.round(field.pdfRect.right) + "_"
+                + Math.round(field.pdfRect.bottom);
+    }
+
+    private boolean isSignFieldType(String type) {
+        return "sign".equalsIgnoreCase(type);
     }
 
     public interface OnPdfFieldEditListener {
@@ -1455,9 +1446,9 @@ public class PdfInkSignView extends AppCompatImageView {
                 return true;
             }
 
-            if ("signature".equalsIgnoreCase(type)) {
-                if (mOnPdfSignatureFieldClickListener != null) {
-                    mOnPdfSignatureFieldClickListener.onPdfSignatureFieldClick(field);
+            if ("sign".equalsIgnoreCase(type)) {
+                if (mOnPdfSignFieldClickListener != null) {
+                    mOnPdfSignFieldClickListener.onPdfSignFieldClick(field);
                     return true;
                 }
                 return true;
@@ -1495,19 +1486,58 @@ public class PdfInkSignView extends AppCompatImageView {
                 || "y".equalsIgnoreCase(v);
     }
 
-    public void setSignatureBitmapToField(PdfRenderedFormField field, Bitmap bitmap) {
+    public void setSignBitmapToField(PdfRenderedFormField field, Bitmap bitmap) {
         if (field == null || bitmap == null) return;
+        if (field.pdfRect == null) return;
 
-        signatureOverlay.bitmap = bitmap;
-        signatureOverlay.visible = true;
-        signatureOverlay.pdfRect = new RectF(
+        String key = getSignFieldKey(field);
+        if ("".equals(key)) return;
+
+        PdfSignOverlay overlay = new PdfSignOverlay();
+        overlay.bitmap = bitmap;
+        overlay.visible = true;
+        overlay.pdfRect = new RectF(
                 field.pdfRect.left,
                 field.pdfRect.top,
                 field.pdfRect.right,
                 field.pdfRect.bottom
         );
 
+        mSignOverlays.put(key, overlay);
+
+        // sign 필드도 값이 있다는 표시를 남김
+        field.value = "signed";
+        if (field.name != null && !"".equals(field.name)) {
+            mEditedFieldValues.put(field.name, "signed");
+        }
+
         saveCurrentPageOverlay();
         invalidate();
     }
+
+    public Bitmap getSignBitmapForField(PdfRenderedFormField field) {
+        if (field == null) return null;
+
+        String key = getSignFieldKey(field);
+        if ("".equals(key)) return null;
+
+        PdfSignOverlay overlay = mSignOverlays.get(key);
+        if (overlay == null) return null;
+        if (!overlay.visible) return null;
+        if (overlay.bitmap == null || overlay.bitmap.isRecycled()) return null;
+
+        return overlay.bitmap;
+    }
+
+    private boolean isSamePdfRect(RectF a, RectF b, float tolerance) {
+        if (a == null || b == null) return false;
+
+        return Math.abs(a.left - b.left) <= tolerance
+                && Math.abs(a.top - b.top) <= tolerance
+                && Math.abs(a.right - b.right) <= tolerance
+                && Math.abs(a.bottom - b.bottom) <= tolerance;
+    }
+
+
+
 }

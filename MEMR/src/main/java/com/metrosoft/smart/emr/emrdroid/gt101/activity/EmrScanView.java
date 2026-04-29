@@ -57,6 +57,7 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
 
     private String[] mPathPage = new String[15]; // 2022.03.22 WOOIL - 1~10 페이지의 파일 정보
     private String[] mUrlPage = new String[15]; // 2022.03.23 WOOIL - 1~10 페이지 정보
+    private boolean[] mIsDownloadPdf = new boolean[15]; // 2026.04.28 WOOIL - PDF문서를 한 번만 다운로드하기 위한 변수
     private MediaPlayer player;
 
     private WebView mWebView;
@@ -275,11 +276,7 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                 String hospitalId = getHospitalId();
                 String userId = getUserId();
                 String url = "";
-				/*
-				// 환자정보
-				url = "InPatientInformationServlet?hospitalid=" + hospitalId + "&pid=" + mPid + "&bededt=" + mBededt;
-				mXmlPatientInfo = getXml(url);
-				*/
+
                 String mode = "7";
                 if ("signed".equalsIgnoreCase(mFrom)) {
                     mode = "";
@@ -290,23 +287,11 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                 mFullUrl = getFullUrl(imageUrl);
                 Log.d("EmrDroid-Servlet", mFullUrl);
 
-                // 2026.04.10 WOOIL - 막음
-                //// 자인컴인 경우
-                //mFullUrl2 = "";
-                //if (!"".equals(mPath2)) {
-                //    String imagePath2 = mPath2.replace("\\", "/");
-                //    String yesNo = getXml("EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath2 + "&mode=2");
-                //    if ("yes".equalsIgnoreCase(yesNo)) {
-                //        String imageUrl2 = "EmrScanServlet?hospitalid=" + hospitalId + "&path=" + imagePath2;
-                //        mFullUrl2 = getFullUrl(imageUrl2);
-                //    }
-                //    Log.d("EmrDroid-Servlet", mFullUrl2);
-                //}
-
                 // 여러페이지인 경우 페이지 정보를
                 for (int i = 0; i < 15; i++) {
                     mPathPage[i] = "";
                     mUrlPage[i] = "";
+                    mIsDownloadPdf[i] = false; // 2026.04.28 WOOIL - 초기화
                 }
                 mPathPage[0] = mPath; // 페이지 선택할때 사용하기 위해 담아놓는다.
                 mUrlPage[0] = mFullUrl; // 페이지 선택할때 사용하기 위해 담아놓는다.
@@ -369,7 +354,7 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                 @Override
                 public void run() {
                     try {
-                        final File pdfFile = downloadPdfToLocal(mFullUrl, "emrscan_" + mCurrentPageNo + ".pdf");
+                        final File pdfFile = downloadPdfToLocal(mFullUrl, "emrscan_" + mCurrentPageNo + ".pdf", mCurrentPageNo);
                         mHandler.post(new Runnable() {
                             @Override
                             public void run() {
@@ -549,65 +534,6 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
 
     }
 
-    //private void deleteEmrScan(){
-    //	AlertDialog.Builder dialog = new AlertDialog.Builder(this);
-    //	dialog.setTitle("확인");
-    //	dialog.setMessage("삭제하시겠습니까?");
-    //	dialog.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
-    //		public void onClick(DialogInterface dialog, int which) {
-    //			actionDeleteEmrScan();
-    //		}
-    //	});
-    //	dialog.setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-    //		public void onClick(DialogInterface dialog, int which) {
-    //			dialog.dismiss();
-    //		}
-    //	});
-    //	dialog.setCancelable(false);
-    //	dialog.show();
-    //}
-
-    //private void actionDeleteEmrScan(){
-    //	mDialog = ProgressDialog.show(EmrScanView.this, "", getString(R.string.query_wait_message), true);
-    //	new Thread(new Runnable() {
-    //		public void run() {
-    //			String hospitalId = getHospitalId();
-    //			String userId = getUserId();
-    //			String url = "";
-    //			String mode="12";
-    //
-    //			// 녹음파일이 몇개가 있는지 찾아본다.
-    //			url = "ChartServlet?hospitalid=" + hospitalId +
-    //					          "&userid=" + userId +
-    //		                      "&pid=" + mPid +
-    //		                      "&bdiv=" + mBdiv +
-    //		                      "&exdt=" + mExdt +
-    //		                      "&seq=" + mSeq +
-    //		                      "&rptcd=" + mRptcd +
-    //		                      "&mode=" + mode ;
-    //			final String xml = getXml(url);
-    //
-    //			mHandler.post(new Runnable() {
-    //				public void run() {
-    //					// 조회중 화면이 전환되는 경우 dialog가 사라져서 오류가 발생한다.
-    //					// 이를 방지함.
-    //					try {
-    //						afterActionDeleteEmrScan(xml);
-    //						mDialog.dismiss();
-    //					} catch (Exception e) {
-    //						;
-    //					}
-    //				}
-    //			});
-    //		}
-    //	}).start();
-    //}
-
-    //private void afterActionDeleteEmrScan(String xml){
-    //	if(xml.equalsIgnoreCase("y")) super.onBackPressed(); // 성공. 이 창을 닫는다.
-    //	else showSimpleDialog(xml);
-    //}
-
     @Override
     public void onCheckedChanged(RadioGroup group, int checkedId) {
         // TODO Auto-generated method stub
@@ -652,6 +578,8 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                 //String userId = getUserId();
                 //String url = "";
 
+                mCurrentPageNo = pageNo;
+
                 String mode = "7";
                 if ("signed".equalsIgnoreCase(mFrom)) {
                     mode = "";
@@ -670,8 +598,8 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
                         // 조회중 화면이 전환되는 경우 dialog가 사라져서 오류가 발생한다.
                         // 이를 방지함.
                         try {
-                            afterGetEmrScanView();
                             mDialog.dismiss();
+                            afterGetEmrScanView();
                         } catch (Exception e) {
                             ;
                         }
@@ -706,7 +634,7 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
     }
 
     // 2026.04.15 WOOIL - PDF문서를 다운로드 하다.
-    private File downloadPdfToLocal(String url, String fileName) throws Exception {
+    private File downloadPdfToLocal(String url, String fileName, int pageNo) throws Exception {
         String dirPath = getFilesDir().getAbsolutePath() + File.separator + "emrscan_pdf";
         File dir = new File(dirPath);
         if (!dir.exists()) {
@@ -714,7 +642,11 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
         }
 
         File outFile = new File(dir, fileName);
-        Utils.downFile(this, url, outFile.getAbsolutePath());
+        // 2026.04.28 WOOIL - 한 번 다운도르한 파일은 다시 다운로드하지 않는다.
+        if (mIsDownloadPdf[pageNo] == false) {
+            Utils.downFile(this, url, outFile.getAbsolutePath());
+            mIsDownloadPdf[pageNo] = true;
+        }
         return outFile;
     }
 

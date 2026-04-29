@@ -49,6 +49,7 @@ public class PdfFormFieldReader {
 
     private static final String TAG = "PdfFormFieldReader";
 
+    private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
     /**
      * 모든 AcroForm field를 읽는다.
      */
@@ -216,7 +217,7 @@ public class PdfFormFieldReader {
             // PdfRenderedFormField에 type 멤버가 있다면 사용하는 것이 좋다.
             // 없으면 이 줄은 제거해도 된다.
             try {
-                item.type = fieldType;
+                item.type = getFieldType(field, widget);
             } catch (Throwable ignore) {
                 // PdfRenderedFormField에 type이 아직 없으면 무시
             }
@@ -454,5 +455,33 @@ public class PdfFormFieldReader {
             debugTextList.add(text);
         } catch (Exception ignore) {
         }
+    }
+
+    private static String getFieldType(PDField field, PDAnnotationWidget widget) {
+        String customType = "";
+
+        try {
+            customType = field.getCOSObject().getNameAsString(MS_FIELD_TYPE);
+            if (customType != null && customType.trim().length() > 0) {
+                return customType.trim();
+            }
+        } catch (Exception ignore) {
+        }
+
+        try {
+            if (widget != null) {
+                customType = widget.getCOSObject().getNameAsString(MS_FIELD_TYPE);
+                if (customType != null && customType.trim().length() > 0) {
+                    return customType.trim();
+                }
+            }
+        } catch (Exception ignore) {
+        }
+
+        if (field instanceof PDTextField) {
+            return "text";
+        }
+
+        return "";
     }
 }

@@ -44,7 +44,8 @@ public class PdfInkPdfSaver {
 
             // 2. 페이지별 펜 stroke / 서명 저장
             HashMap<Integer, ArrayList<PdfInkStroke>> allPageStrokes = view.getAllPageStrokes();
-            HashMap<Integer, PdfSignatureOverlay> allPageSigns = view.getAllPageSignatures();
+            HashMap<Integer, HashMap<String, PdfSignOverlay>> allPageSigns =
+                    view.getAllPageSignOverlays();
 
             for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
                 PDPage page = document.getPage(pageIndex);
@@ -54,9 +55,18 @@ public class PdfInkPdfSaver {
                     savePageInkAnnotations(document, page, strokes);
                 }
 
-                PdfSignatureOverlay sign = allPageSigns.get(pageIndex);
-                if (sign != null && sign.visible && sign.bitmap != null && !sign.bitmap.isRecycled()) {
-                    savePageSignatureImage(document, page, sign);
+                HashMap<String, PdfSignOverlay> signMap = allPageSigns.get(pageIndex);
+                if (signMap != null && signMap.size() > 0) {
+                    for (String key : signMap.keySet()) {
+                        PdfSignOverlay sign = signMap.get(key);
+
+                        if (sign == null) continue;
+                        if (!sign.visible) continue;
+                        if (sign.bitmap == null || sign.bitmap.isRecycled()) continue;
+                        if (sign.pdfRect == null) continue;
+
+                        savePageSignImage(document, page, sign);
+                    }
                 }
             }
 
@@ -106,6 +116,8 @@ public class PdfInkPdfSaver {
             try {
                 if (field instanceof PDCheckBox) {
                     setCheckBoxValue((PDCheckBox) field, fieldValue);
+                } else if ("signed".equalsIgnoreCase(fieldValue)) {
+                    // sign 필드는 이미지로 저장하므로 문자열 값은 넣지 않음
                 } else {
                     field.setValue(fieldValue == null ? "" : fieldValue);
                 }
@@ -114,7 +126,7 @@ public class PdfInkPdfSaver {
         }
 
         try {
-            acroForm.setNeedAppearances(true);
+            acroForm.setNeedAppearances(false);
         } catch (Exception ignore) {
         }
 
@@ -156,7 +168,7 @@ public class PdfInkPdfSaver {
         }
     }
 
-    private static void savePageSignatureImage(PDDocument document, PDPage page, PdfSignatureOverlay sign) throws IOException {
+    private static void savePageSignImage(PDDocument document, PDPage page, PdfSignOverlay sign) throws IOException {
 
         RectF pdfRect = sign.pdfRect;
         PDImageXObject imageXObject = LosslessFactory.createFromImage(document, sign.bitmap);
@@ -287,4 +299,6 @@ public class PdfInkPdfSaver {
             }
         }
     }
+
+
 }

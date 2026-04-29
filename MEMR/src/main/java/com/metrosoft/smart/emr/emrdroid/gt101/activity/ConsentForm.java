@@ -29,7 +29,6 @@ import android.os.Environment;
 import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.MediaStore.Images;
-import android.support.annotation.UiThread;
 import android.support.v4.content.FileProvider;
 import android.util.Log;
 import android.view.View;
@@ -58,12 +57,11 @@ import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValues;
 import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfErrorListener;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormEditor;
-import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormRuntimeWriter;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormTextFieldSpec;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfRenderedFormField;
-import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfSignatureInputView;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfSignInputView;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.EmrSettingsUtil;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.Utils;
@@ -74,8 +72,6 @@ import org.json.JSONException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileFilter;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,8 +85,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
 
 public class ConsentForm extends MyActivity implements OnCheckedChangeListener, OnClickListener, OnItemSelectedListener {
     private final int CALL_CAMERA = 1;
@@ -558,10 +552,10 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     });
                 }
             });
-            pdfView.setOnPdfSignatureFieldClickListener(new PdfInkSignView.OnPdfSignatureFieldClickListener() {
+            pdfView.setOnPdfSignFieldClickListener(new PdfInkSignView.OnPdfSignFieldClickListener() {
                 @Override
-                public void onPdfSignatureFieldClick(final PdfRenderedFormField field) {
-                    showPdfSignatureFieldEditDialog(pdfView, field);
+                public void onPdfSignFieldClick(final PdfRenderedFormField field) {
+                    showPdfSignFieldEditDialog(pdfView, field);
                 }
             });
             mPdfViewList.add(pdfView);
@@ -1228,6 +1222,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         picUploadFileList[pageIdx] = "";
                     }
 
+                    // 2026.04.28 WOOIL - 파일면에 앱 버전을 추가한다.
+                    String appVersion = "v" + getAppVersion().replace(".", "_");
+
                     // ------------------------------------------------------------------------------------------------------------------------
                     // 2023.03.20 WOOIL - 페이지 별로 저장할 파일명을 만들어 놓는다.
                     //                    서버에 같은 이름으로 파일이 있으면 덮어쓰지 못하는 병원(나무병원)이 있어서 파일이 있는지 여부를 검사한다.
@@ -1249,7 +1246,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                     applyExdt + "\\" +
                                     mPid + "\\" +
                                     inoutdiv + "\\" +
-                                    "ZZ01" + "_" + sysdt + "_" + systm + "_" + ipAddress + "_" + Integer.toString((++imageSeq) + 1000).substring(1);
+                                    "ZZ01" + "_" + sysdt + "_" + systm + "_" + ipAddress + "_" + appVersion + "_p" + Integer.toString((++imageSeq) + 1000).substring(1);
                             if ("Y".equalsIgnoreCase(preSave)) {
                                 uploadFileName[pageIdx] += "_" + preSave.trim();
                             }
@@ -3308,7 +3305,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         builder.show();
     }
 
-    private void showPdfSignatureFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
+    private void showPdfSignFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
 
         if (pdfView == null || field == null) {
             return;
@@ -3318,7 +3315,13 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             return;
         }
 
-        final PdfSignatureInputView signView = new PdfSignatureInputView(ConsentForm.this);
+        final PdfSignInputView signView = new PdfSignInputView(ConsentForm.this);
+
+        // 기존 sign 필드에 입력된 사인이 있으면 편집창에 먼저 표시
+        Bitmap oldSignBitmap = pdfView.getSignBitmapForField(field);
+        if (oldSignBitmap != null) {
+            signView.setSignBitmap(oldSignBitmap);
+        }
 
         int height = (int) Utils.getPixelFromDip(ConsentForm.this, 220);
         signView.setLayoutParams(new LinearLayout.LayoutParams(
@@ -3339,14 +3342,14 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             @Override
             public void onClick(DialogInterface dialog, int which) {
 
-                Bitmap signBitmap = signView.getSignatureBitmap();
+                Bitmap signBitmap = signView.getSignBitmap();
 
                 if (signBitmap == null) {
                     Toast.makeText(mActivity, "서명 이미지 생성 실패", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
-                pdfView.setSignatureBitmapToField(field, signBitmap);
+                pdfView.setSignBitmapToField(field, signBitmap);
             }
         });
 
@@ -3370,4 +3373,13 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         dialog.show();
     }
 
+    private String getAppVersion() {
+        try {
+            return getPackageManager()
+                    .getPackageInfo(getPackageName(), 0)
+                    .versionName;   // ex) "1.0.3"
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
 }
