@@ -2,7 +2,7 @@ package com.metrosoft.smart.emr.emrdroid.gt101.pdf;
 
 import android.graphics.Bitmap;
 
-public class PdfSignatureSpec {
+public class PdfSignSpec {
     public int pageIndex;
     public Bitmap bitmap;
     public float x;
@@ -10,11 +10,11 @@ public class PdfSignatureSpec {
     public float width;
     public float height;
 
-    public PdfSignatureSpec() {
+    public PdfSignSpec() {
     }
 
-    public PdfSignatureSpec(int pageIndex, Bitmap bitmap,
-                            float x, float y, float width, float height) {
+    public PdfSignSpec(int pageIndex, Bitmap bitmap,
+                       float x, float y, float width, float height) {
         this.pageIndex = pageIndex;
         this.bitmap = bitmap;
         this.x = x;

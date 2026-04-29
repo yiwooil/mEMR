@@ -1,7 +1,6 @@
 package com.metrosoft.smart.emr.emrdroid.gt101.pdf;
 
 import android.content.Context;
-import android.graphics.Bitmap;
 import android.util.Log;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
@@ -14,8 +13,6 @@ import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
 import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDType0Font;
-import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
-import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceCharacteristicsDictionary;
@@ -26,7 +23,6 @@ import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictiona
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDSignatureField;
 import com.tom_roush.pdfbox.pdmodel.interactive.form.PDTextField;
 
 import java.io.File;
@@ -53,6 +49,7 @@ import java.util.Map;
 public class PdfFormEditor {
 
     private static final String TAG = "PdfFormEditor";
+    private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
 
     /** PDF 내부에서 사용할 폰트 리소스 이름 */
     private static final String FONT_RESOURCE_NAME = "F1";
@@ -74,7 +71,7 @@ public class PdfFormEditor {
      * @param outPdf 결과 PDF
      * @param fieldsToCreate 새로 생성할 필드 목록
      * @param valuesToFill 필드명 -> 값
-     * @param signatures 사인 이미지 목록
+     * @param signs 사인 이미지 목록
      * @param flattenAfterSave true이면 저장 전 flatten
      * @param listener 오류/디버그 메시지 수신
      */
@@ -84,7 +81,7 @@ public class PdfFormEditor {
             File outPdf,
             List<PdfFormTextFieldSpec> fieldsToCreate,
             Map<String, String> valuesToFill,
-            List<PdfSignatureSpec> signatures,
+            List<PdfSignSpec> signs,
             boolean flattenAfterSave,
             PdfErrorListener listener
     ) throws Exception {
@@ -108,8 +105,9 @@ public class PdfFormEditor {
                     String typeName = spec.typeName == null ? "" : spec.typeName.trim();
                     if ("checkbox".equalsIgnoreCase(typeName)) {
                         addCheckBoxField(document, acroForm, spec, listener);
-                    } else if ("signature".equalsIgnoreCase(typeName)) {
-                        addSignatureField(document, acroForm, spec, listener);
+                    } else if ("sign".equalsIgnoreCase(typeName)) {
+                        // 손글씨 싸인 입력용 위치 필드
+                        addSignField(document, acroForm, spec, listener);
                     } else {
                         addTextField(document, acroForm, spec, listener);
                     }
@@ -124,9 +122,9 @@ public class PdfFormEditor {
 
             // 3. 사인 이미지 삽입
             if (listener != null) listener.onError(" 103");
-            if (signatures != null) {
-                for (int i = 0; i < signatures.size(); i++) {
-                    drawSignature(document, signatures.get(i));
+            if (signs != null) {
+                for (int i = 0; i < signs.size(); i++) {
+                    drawSign(document, signs.get(i));
                 }
             }
 
@@ -228,6 +226,10 @@ public class PdfFormEditor {
         if (listener != null) listener.onError(" a03");
         PDTextField textField = new PDTextField(acroForm);
         textField.setPartialName(spec.fieldName);
+
+        // 앱 전용 필드 타입 저장
+        textField.getCOSObject().setName(MS_FIELD_TYPE, "text");
+
         if (spec.readOnly) {
             textField.setReadOnly(true);
         }
@@ -253,6 +255,7 @@ public class PdfFormEditor {
         widget.setRectangle(rect);
         widget.setPage(page);
         widget.setParent(textField);
+        widget.getCOSObject().setName(MS_FIELD_TYPE, "text");
 
         try {
             PDAppearanceCharacteristicsDictionary appearance =
@@ -328,6 +331,10 @@ public class PdfFormEditor {
         // 1. field 생성
         PDCheckBox checkBox = new PDCheckBox(acroForm);
         checkBox.setPartialName(spec.fieldName);
+
+        // 앱 전용 필드 타입 저장
+        checkBox.getCOSObject().setName(MS_FIELD_TYPE, "checkbox");
+
         if (spec.readOnly) {
             checkBox.setReadOnly(true);
         }
@@ -344,6 +351,7 @@ public class PdfFormEditor {
         widget.setRectangle(rect);
         widget.setPage(page);
         widget.setParent(checkBox);
+        widget.getCOSObject().setName(MS_FIELD_TYPE, "checkbox");
 
         try {
             PDAppearanceCharacteristicsDictionary appearance =
@@ -389,11 +397,14 @@ public class PdfFormEditor {
     }
 
     /**
-     * 새 signature 필드 생성
-     * - PDF 전자서명용 signature field를 만든다.
-     * - 손글씨 bitmap 사인을 넣는 기능과는 별개이다.
+     * 손글씨 싸인 입력용 sign 필드 생성
+     *
+     * 주의:
+     * - PDF 전자서명용 PDSignatureField가 아니다.
+     * - 앱에서 터치 가능한 싸인 입력 영역으로 사용하기 위한 일반 TextField이다.
+     * - 실제 싸인 이미지는 PdfInkPdfSaver에서 bitmap으로 PDF 페이지에 그려 저장한다.
      */
-    private static void addSignatureField(
+    private static void addSignField(
             PDDocument document,
             PDAcroForm acroForm,
             PdfFormTextFieldSpec spec,
@@ -409,7 +420,7 @@ public class PdfFormEditor {
             return;
         }
 
-        if (listener != null) listener.onError(" s01");
+        if (listener != null) listener.onError(" sign01");
 
         PDPage page = document.getPage(spec.pageNo);
         float pageHeight = page.getMediaBox().getHeight();
@@ -417,19 +428,27 @@ public class PdfFormEditor {
         float pdfX = spec.x;
         float pdfY = pageHeight - spec.y - spec.height;
 
-        if (listener != null) listener.onError(" s02");
+        PDTextField signField = new PDTextField(acroForm);
+        signField.setPartialName(spec.fieldName);
 
-        PDSignatureField signatureField = new PDSignatureField(acroForm);
-        signatureField.setPartialName(spec.fieldName);
+        // 앱 전용 필드 타입 저장
+        signField.getCOSObject().setName(MS_FIELD_TYPE, "sign");
+
+        // sign은 사용자가 터치해서 싸인을 넣어야 하므로 readOnly는 false 권장
         if (spec.readOnly) {
-            signatureField.setReadOnly(true);
+            signField.setReadOnly(true);
         }
 
-        if (listener != null) listener.onError(" s03");
+        String value = getSpecValue(spec);
+        if (value == null) value = "";
 
-        PDAnnotationWidget widget = signatureField.getWidgets().get(0);
+        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
+        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
 
-        if (listener != null) listener.onError(" s04");
+        signField.setDefaultAppearance(fieldDA);
+        signField.setDefaultValue(value);
+
+        PDAnnotationWidget widget = new PDAnnotationWidget();
 
         PDRectangle rect = new PDRectangle();
         rect.setLowerLeftX(pdfX);
@@ -437,68 +456,63 @@ public class PdfFormEditor {
         rect.setUpperRightX(pdfX + spec.width);
         rect.setUpperRightY(pdfY + spec.height);
 
-        if (listener != null) listener.onError(" s05");
-
         widget.setRectangle(rect);
-        if (listener != null) listener.onError(" s05-1");
         widget.setPage(page);
-        if (listener != null) listener.onError(" s05-2");
-        //widget.setParent(signatureField);
-
-        if (listener != null) listener.onError(" s06");
+        widget.setParent(signField);
+        widget.getCOSObject().setName(MS_FIELD_TYPE, "sign");
 
         try {
             PDAppearanceCharacteristicsDictionary appearance =
                     new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-
-            // 연한 노란색 (RGB)
-            PDColor bgColor = new PDColor(
-                    new float[] {1.0f, 1.0f, 0.82f},   // R, G, B (0~1)
-                    PDDeviceRGB.INSTANCE
-            );
-            appearance.setBackground(bgColor);
-
-            // 테두리 색
-            PDColor borderColor = new PDColor(
-                    new float[] { 0.0f, 0.7f, 0.0f },
-                    PDDeviceRGB.INSTANCE
-            );
-
-            appearance.setBorderColour(borderColor);
-
             widget.setAppearanceCharacteristics(appearance);
-
-            // PdfRenderer / 일반 뷰어에서 항상 보이도록 appearance stream 직접 생성
-            widget.setAppearance(createSignatureAppearance(document, rect));
-
         } catch (Exception ignore) {
         }
 
-        if (listener != null) listener.onError(" s07");
-
         try {
+            // 1) widget 자체의 border style 설정
             PDBorderStyleDictionary border = new PDBorderStyleDictionary();
             border.setWidth(1);
             widget.setBorderStyle(border);
+
+            // 2) widget appearance characteristics에 테두리 색 지정
+            PDAppearanceCharacteristicsDictionary appearance =
+                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
+
+            // 검은색 테두리
+            appearance.getCOSObject().setItem(
+                    COSName.BC,
+                    createRgbArray(0f, 0f, 0f)
+            );
+
+            widget.setAppearanceCharacteristics(appearance);
+
+            // 3) 일반 뷰어에서 보이도록 appearance stream 직접 생성
+            widget.setAppearance(createSignAppearance(document, rect));
+
+            // 4) 인쇄 시에도 보이도록
+            widget.setPrinted(true);
+
         } catch (Exception ignore) {
         }
-
-        if (listener != null) listener.onError(" s08");
 
         try {
-            widget.getCOSObject().setString(COSName.DA, DEFAULT_DA);
+            widget.getCOSObject().setString(COSName.DA, fieldDA);
         } catch (Exception ignore) {
         }
 
-        if (listener != null) listener.onError(" s09");
+        COSArray kids = new COSArray();
+        kids.add(widget.getCOSObject());
+        signField.getCOSObject().setItem(COSName.KIDS, kids);
 
-        addFieldToAcroFormRaw(acroForm, signatureField);
-
-        if (listener != null) listener.onError(" s10");
-
+        addFieldToAcroFormRaw(acroForm, signField);
         page.getAnnotations().add(widget);
 
-        if (listener != null) listener.onError(" s11");
+        // 중요:
+        // sign 필드는 손글씨 이미지 위치용이므로 setValue() 하지 않음.
+        // setValue()를 호출하면 PDFBox가 appearance를 다시 만들면서 테두리가 사라질 수 있음.
+        // signField.setValue(value);
+
+        if (listener != null) listener.onError(" sign10");
     }
 
     /**
@@ -516,12 +530,6 @@ public class PdfFormEditor {
 
             PDField field = acroForm.getField(fieldName);
             if (field == null) {
-                continue;
-            }
-
-            if (field instanceof PDSignatureField) {
-                // signature field는 text처럼 값을 넣지 않는다.
-                // field.setValue(String)을 호출하면 멈추거나 오류가 날 수 있다.
                 continue;
             }
 
@@ -608,9 +616,9 @@ public class PdfFormEditor {
     /**
      * 사인 이미지를 PDF 페이지에 삽입
      */
-    private static void drawSignature(
+    private static void drawSign(
             PDDocument document,
-            PdfSignatureSpec spec
+            PdfSignSpec spec
     ) throws Exception {
 
         if (spec == null) return;
@@ -795,15 +803,15 @@ public class PdfFormEditor {
     }
 
     /**
-     * signature field의 normal appearance를 만든다.
-     * - Android PdfRenderer에서도 배경색이 보이도록 appearance stream을 직접 생성한다.
+     * sign field의 normal appearance를 만든다.
+     * - 손글씨 싸인 입력 영역 표시용
      */
-    private static PDAppearanceDictionary createSignatureAppearance(
+    private static PDAppearanceDictionary createSignAppearance(
             PDDocument document,
             PDRectangle rect
     ) throws Exception {
 
-        PDAppearanceStream normalStream = createSignatureAppearanceStream(document, rect);
+        PDAppearanceStream normalStream = createSignAppearanceStream(document, rect);
 
         PDAppearanceDictionary ap = new PDAppearanceDictionary();
         ap.setNormalAppearance(normalStream);
@@ -812,9 +820,9 @@ public class PdfFormEditor {
     }
 
     /**
-     * signature field 1개의 appearance stream 생성
+     * sign field 1개의 appearance stream 생성
      */
-    private static PDAppearanceStream createSignatureAppearanceStream(
+    private static PDAppearanceStream createSignAppearanceStream(
             PDDocument document,
             PDRectangle rect
     ) throws Exception {
@@ -832,13 +840,10 @@ public class PdfFormEditor {
             float w = rect.getWidth();
             float h = rect.getHeight();
 
-            // 연한 노란색 배경
-            cs.setNonStrokingColor(255, 255, 210);
-            cs.addRect(0, 0, w, h);
-            cs.fill();
+            // 배경색은 칠하지 않음
 
-            // 녹색 테두리
-            cs.setStrokingColor(0, 180, 0);
+            // 검은색 테두리만 표시
+            cs.setStrokingColor(0, 0, 0);
             cs.setLineWidth(1f);
             cs.addRect(0.5f, 0.5f, w - 1f, h - 1f);
             cs.stroke();
@@ -855,4 +860,11 @@ public class PdfFormEditor {
         return stream;
     }
 
+    private static COSArray createRgbArray(float r, float g, float b) {
+        COSArray arr = new COSArray();
+        arr.add(new com.tom_roush.pdfbox.cos.COSFloat(r));
+        arr.add(new com.tom_roush.pdfbox.cos.COSFloat(g));
+        arr.add(new com.tom_roush.pdfbox.cos.COSFloat(b));
+        return arr;
+    }
 }

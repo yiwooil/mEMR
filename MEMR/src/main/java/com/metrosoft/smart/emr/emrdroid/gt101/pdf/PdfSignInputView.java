@@ -9,12 +9,15 @@ import android.graphics.Path;
 import android.view.MotionEvent;
 import android.view.View;
 
-public class PdfSignatureInputView extends View {
+import java.util.HashMap;
+
+public class PdfSignInputView extends View {
 
     private Paint paint;
     private Path path;
+    private Bitmap baseBitmap;
 
-    public PdfSignatureInputView(Context context) {
+    public PdfSignInputView(Context context) {
         super(context);
 
         path = new Path();
@@ -33,16 +36,28 @@ public class PdfSignatureInputView extends View {
 
     public void clear() {
         path.reset();
+
+        if (baseBitmap != null && !baseBitmap.isRecycled()) {
+            baseBitmap.recycle();
+        }
+        baseBitmap = null;
+
         invalidate();
     }
 
-    public Bitmap getSignatureBitmap() {
+    public Bitmap getSignBitmap() {
         if (getWidth() <= 0 || getHeight() <= 0) return null;
 
         Bitmap bitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
         canvas.drawColor(Color.TRANSPARENT);
+
+        if (baseBitmap != null && !baseBitmap.isRecycled()) {
+            canvas.drawBitmap(baseBitmap, null,
+                    new android.graphics.RectF(0, 0, getWidth(), getHeight()), null);
+        }
+
         canvas.drawPath(path, paint);
 
         return bitmap;
@@ -51,6 +66,12 @@ public class PdfSignatureInputView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
+
+        if (baseBitmap != null && !baseBitmap.isRecycled()) {
+            canvas.drawBitmap(baseBitmap, null,
+                    new android.graphics.RectF(0, 0, getWidth(), getHeight()), null);
+        }
+
         canvas.drawPath(path, paint);
     }
 
@@ -77,4 +98,19 @@ public class PdfSignatureInputView extends View {
 
         return true;
     }
+
+    public void setSignBitmap(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) return;
+
+        baseBitmap = Bitmap.createScaledBitmap(
+                bitmap,
+                getWidth() > 0 ? getWidth() : bitmap.getWidth(),
+                getHeight() > 0 ? getHeight() : bitmap.getHeight(),
+                true
+        );
+
+        path.reset();
+        invalidate();
+    }
+
 }
