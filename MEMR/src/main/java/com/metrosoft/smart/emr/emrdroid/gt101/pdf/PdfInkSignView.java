@@ -3,6 +3,7 @@ package com.metrosoft.smart.emr.emrdroid.gt101.pdf;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -17,6 +18,9 @@ import android.support.v7.widget.AppCompatImageView;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
+
+import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
+import com.metrosoft.smart.emr.emrdroid.gt101.view.FingerPaintView3;
 
 import java.io.File;
 import java.io.IOException;
@@ -160,6 +164,17 @@ public class PdfInkSignView extends AppCompatImageView {
 
     public void setOnPdfSignFieldClickListener(OnPdfSignFieldClickListener listener) {
         this.mOnPdfSignFieldClickListener = listener;
+    }
+
+    // CcfValue 통지용 (PDF용)
+    public interface OnPdfFieldValueChangedListener {
+        void onPdfFieldValueChanged(int index, PdfRenderedFormField field);
+    }
+
+    private OnPdfFieldValueChangedListener mOnPdfFieldValueChangedListener;
+
+    public void setOnPdfFieldValueChangedListener(OnPdfFieldValueChangedListener listener) {
+        this.mOnPdfFieldValueChangedListener = listener;
     }
 
     // 탭 판정용
@@ -381,7 +396,7 @@ public class PdfInkSignView extends AppCompatImageView {
                     type = f.type;
                 } catch (Throwable ignore) {
                 }
-                mDebugTextList.add("form-field = " + safe(f.name) + " / " + safe(type) + " / " + safe(f.value));
+                mDebugTextList.add("form-field = " + safe(f.ccfId) + " / " + safe(type) + " / " + safe(f.value));
             }
 
             setRenderedFormFields(fields);
@@ -559,7 +574,7 @@ public class PdfInkSignView extends AppCompatImageView {
         }
 
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
-            drawRenderedFormField(canvas, mRenderedFormFields.get(i));
+            drawRenderedFormField(canvas, mRenderedFormFields.get(i), i);
         }
 
         for (int i = 0; i < strokes.size(); i++) {
@@ -581,7 +596,11 @@ public class PdfInkSignView extends AppCompatImageView {
 
             RectF screenRect = pdfRectToScreenRect(overlay.pdfRect);
             canvas.drawBitmap(overlay.bitmap, null, screenRect, null);
-            canvas.drawRect(screenRect, signFramePaint);
+
+            // 손으로 입력한 싸인만 외곽 박스 표시
+            if (!overlay.autoImageSign) {
+                canvas.drawRect(screenRect, signFramePaint);
+            }
         }
     }
 
@@ -1202,8 +1221,13 @@ public class PdfInkSignView extends AppCompatImageView {
     /**
      * PDF 내부 AcroForm field 1개를 화면에 다시 그린다.
      */
-    private void drawRenderedFormField(Canvas canvas, PdfRenderedFormField field) {
+    private void drawRenderedFormField(Canvas canvas, PdfRenderedFormField field, int index) {
         if (field == null || !field.isValid()) return;
+
+        // 값 변경 통지
+        if (mOnPdfFieldValueChangedListener != null) {
+            mOnPdfFieldValueChangedListener.onPdfFieldValueChanged(index, field);
+        }
 
         RectF screenRect = pdfRectToScreenRect(field.pdfRect);
 
@@ -1301,7 +1325,7 @@ public class PdfInkSignView extends AppCompatImageView {
 
             String text = safe(field.value);
             if ("".equals(text)) {
-                text = safe(field.name);
+                text = safe(field.ccfId);
             }
             canvas.drawText(text, x, y, formTextPaint);
 
@@ -1318,7 +1342,12 @@ public class PdfInkSignView extends AppCompatImageView {
                 canvas.drawRect(screenRect, signBorderPaint);
             }
 
-        } else {
+        } else if ("sign_image".equalsIgnoreCase(type)) {
+
+            // sign_AA10011 같은 값이면 문자열 출력하지 않고 사인 이미지만 그림
+            drawDoctorSignValue(canvas, field, screenRect, safe(field.value));
+
+        }else {
             canvas.drawText(safe(field.value), x, y, formTextPaint);
         }
 
@@ -1327,6 +1356,196 @@ public class PdfInkSignView extends AppCompatImageView {
             canvas.drawRect(screenRect, debugPaint);
         }
     }
+
+    private boolean drawDoctorSignValue(Canvas canvas,
+                                        PdfRenderedFormField field,
+                                        RectF screenRect,
+                                        String value) {
+        if (canvas == null || field == null || screenRect == null) return false;
+        if (value == null) return false;
+
+        String drid = getSignDridFromValue(value);
+        if ("".equals(drid)) return false;
+
+        Bitmap signBitmap = loadDoctorSignBitmap(drid);
+        if (signBitmap == null || signBitmap.isRecycled()) {
+            return true; // 문자열 sign_AA10011은 출력하지 않음
+        }
+
+        canvas.drawBitmap(signBitmap, null, screenRect, null);
+
+        // 저장 시 PdfInkPdfSaver가 이미지로 저장할 수 있도록 overlay에도 등록
+        registerAutoSignOverlay(field, signBitmap);
+
+        return true;
+    }
+
+    // sign 값에서 drid 추출
+    private String getSignDridFromValue(String value) {
+        if (value == null) return "";
+
+        String v = value.trim();
+
+        if (v.startsWith("sign_")) {
+            return v.substring(5);
+        }
+
+        if (v.startsWith("logindrsign_")) {
+            return v.substring(12);
+        }
+
+        if (v.startsWith("login_sign_")) {
+            return v.substring(11);
+        }
+
+        return "";
+    }
+
+    // 사인 이미지 로딩 함수
+    private Bitmap loadDoctorSignBitmap(String drid) {
+        if (drid == null || "".equals(drid.trim())) return null;
+
+        String dstDir = getContext().getFilesDir().getAbsolutePath();
+        String pathName = dstDir + File.separator + "Sign" + File.separator + drid;
+
+        Bitmap bm = BitmapFactory.decodeFile(pathName);
+        if (bm == null) return null;
+
+        Bitmap processed = bm.copy(Bitmap.Config.ARGB_8888, true);
+        bm.recycle();
+
+        processed = makeTransparent(processed);
+        processed = enhanceBitmap(processed);
+        processed = expandStroke(processed, 1);
+
+        return processed;
+    }
+
+    // 저장용 overlay 등록 함수
+    private void registerAutoSignOverlay(PdfRenderedFormField field, Bitmap bitmap) {
+        if (field == null || bitmap == null || bitmap.isRecycled()) return;
+        if (field.pdfRect == null) return;
+
+        String key = getSignFieldKey(field);
+        if ("".equals(key)) return;
+
+        if (mSignOverlays.containsKey(key)) {
+            return;
+        }
+
+        PdfSignOverlay overlay = new PdfSignOverlay();
+        overlay.bitmap = bitmap;
+        overlay.visible = true;
+        overlay.autoImageSign = true; // sign_AA10011 같은 자동 이미지 사인
+        overlay.pdfRect = new RectF(
+                field.pdfRect.left,
+                field.pdfRect.top,
+                field.pdfRect.right,
+                field.pdfRect.bottom
+        );
+
+        mSignOverlays.put(key, overlay);
+        saveCurrentPageOverlay();
+    }
+
+    private Bitmap makeTransparent(Bitmap bm) {
+        if (bm == null) return null;
+
+        int width = bm.getWidth();
+        int height = bm.getHeight();
+
+        Bitmap out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        int[] pixels = new int[width * height];
+
+        bm.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        for (int i = 0; i < pixels.length; i++) {
+            if (pixels[i] == Color.WHITE) {
+                pixels[i] = Color.TRANSPARENT;
+            }
+        }
+
+        out.setPixels(pixels, 0, width, 0, 0, width, height);
+        return out;
+    }
+
+    private Bitmap enhanceBitmap(Bitmap src) {
+        if (src == null) return null;
+
+        int width = src.getWidth();
+        int height = src.getHeight();
+
+        Bitmap result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        int[] pixels = new int[width * height];
+
+        src.getPixels(pixels, 0, width, 0, 0, width, height);
+
+        for (int i = 0; i < pixels.length; i++) {
+            int color = pixels[i];
+
+            int alpha = Color.alpha(color);
+            int red = Color.red(color);
+            int green = Color.green(color);
+            int blue = Color.blue(color);
+
+            alpha = Math.min(255, (int) (alpha * 1.5));
+
+            pixels[i] = Color.argb(alpha, red, green, blue);
+        }
+
+        result.setPixels(pixels, 0, width, 0, 0, width, height);
+        return result;
+    }
+
+    private Bitmap expandStroke(Bitmap src, int radius) {
+        if (src == null) return null;
+
+        int width = src.getWidth();
+        int height = src.getHeight();
+
+        Bitmap out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+
+        int[] srcPixels = new int[width * height];
+        int[] outPixels = new int[width * height];
+
+        src.getPixels(srcPixels, 0, width, 0, 0, width, height);
+        System.arraycopy(srcPixels, 0, outPixels, 0, srcPixels.length);
+
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int idx = y * width + x;
+                int color = srcPixels[idx];
+                int alpha = Color.alpha(color);
+
+                if (alpha > 20) {
+                    int red = Color.red(color);
+                    int green = Color.green(color);
+                    int blue = Color.blue(color);
+
+                    for (int dy = -radius; dy <= radius; dy++) {
+                        for (int dx = -radius; dx <= radius; dx++) {
+                            int nx = x + dx;
+                            int ny = y + dy;
+
+                            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+                            if (dx * dx + dy * dy > radius * radius) continue;
+
+                            int nIdx = ny * width + nx;
+                            int oldAlpha = Color.alpha(outPixels[nIdx]);
+
+                            if (oldAlpha < alpha) {
+                                outPixels[nIdx] = Color.argb(alpha, red, green, blue);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        out.setPixels(outPixels, 0, width, 0, 0, width, height);
+        return out;
+    }
+
 
     /**
      * null 안전 문자열 변환
@@ -1338,7 +1557,7 @@ public class PdfInkSignView extends AppCompatImageView {
     private String getSignFieldKey(PdfRenderedFormField field) {
         if (field == null) return "";
 
-        String name = safe(field.name).trim();
+        String name = safe(field.ccfId).trim();
         if (!"".equals(name)) {
             return name;
         }
@@ -1383,12 +1602,148 @@ public class PdfInkSignView extends AppCompatImageView {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.name != null && field.name.equals(fieldName)) {
+            if (field.ccfId != null && field.ccfId.equals(fieldName)) {
                 field.value = newValue;
             }
         }
 
         invalidate();
+    }
+
+    public boolean injectCcfValue4Doctor(
+            String drid,
+            String drnm,
+            String drnmEng,
+            String gdrlcid,
+            String sdrlcid
+    ) {
+        boolean changed = false;
+
+        changed |= updateFieldValueIfExists("drid", drid);
+        changed |= updateFieldValueIfExists("drnm", drnm);
+        changed |= updateFieldValueIfExists("drnm_eng", drnmEng);
+        changed |= updateFieldValueIfExists("gdrlcid", gdrlcid);
+        changed |= updateFieldValueIfExists("sdrlcid", sdrlcid);
+
+        if (changed) {
+            invalidate();
+        }
+
+        return changed;
+    }
+
+    public boolean injectCcfValue4Doctor(
+            String drid,
+            String drnm,
+            String drnmEng,
+            String gdrlcid,
+            String sdrlcid,
+            String dptcd,
+            String dptnm
+    ) {
+        boolean changed = false;
+
+        changed |= injectCcfValue4Doctor(drid, drnm, drnmEng, gdrlcid, sdrlcid);
+        changed |= updateFieldValueIfExists("dptcd", dptcd);
+        changed |= updateFieldValueIfExists("dptnm", dptnm);
+
+        if (changed) {
+            invalidate();
+        }
+
+        return changed;
+    }
+    public boolean injectCcfValue4DrSign(String drsign) {
+        boolean changed = false;
+
+        if (drsign == null) drsign = "";
+
+        for (int i = 0; i < mRenderedFormFields.size(); i++) {
+            PdfRenderedFormField field = mRenderedFormFields.get(i);
+            if (field == null) continue;
+            if (field.ccfId == null) continue;
+
+            if ("drsign".equalsIgnoreCase(field.ccfId)) {
+                String oldValue = safe(field.value);
+
+                if (!drsign.equalsIgnoreCase(oldValue)) {
+                    field.value = drsign;
+                    changed = true;
+
+                    // 저장 시 PDF field 값도 변경되도록 보관
+                    mEditedFieldValues.put(field.ccfId, drsign);
+
+                    // 기존 자동 의사사인 overlay 제거
+                    removeAutoSignOverlayForField(field);
+                }
+            }
+        }
+
+        if (changed) {
+            invalidate();
+        }
+
+        return changed;
+    }
+
+    private void removeAutoSignOverlayForField(PdfRenderedFormField field) {
+        if (field == null) return;
+
+        String key = getSignFieldKey(field);
+        if ("".equals(key)) return;
+
+        PdfSignOverlay overlay = mSignOverlays.get(key);
+        if (overlay == null) return;
+
+        // 자동 이미지 사인만 제거
+        // 손으로 입력한 sign은 지우지 않음
+        if (overlay.autoImageSign) {
+            mSignOverlays.remove(key);
+            saveCurrentPageOverlay();
+        }
+    }
+
+    public boolean injectCcfValue4Dept(String dptcd, String dptnm) {
+        boolean changed = false;
+
+        changed |= updateFieldValueIfExists("dptcd", dptcd);
+        changed |= updateFieldValueIfExists("dptnm", dptnm);
+
+        if (changed) {
+            invalidate();
+        }
+
+        return changed;
+    }
+
+    private boolean updateFieldValueIfExists(String fieldName, String newValue) {
+        if (fieldName == null) return false;
+        if (newValue == null) newValue = "";
+
+        boolean exists = false;
+        boolean changed = false;
+
+        for (int i = 0; i < mRenderedFormFields.size(); i++) {
+            PdfRenderedFormField field = mRenderedFormFields.get(i);
+            if (field == null) continue;
+            if (field.ccfId == null) continue;
+
+            if (fieldName.equalsIgnoreCase(field.ccfId)) {
+                exists = true;
+
+                String oldValue = safe(field.value);
+                if (!oldValue.equals(newValue)) {
+                    field.value = newValue;
+                    changed = true;
+                }
+            }
+        }
+
+        if (exists) {
+            mEditedFieldValues.put(fieldName, newValue);
+        }
+
+        return changed;
     }
 
     /**
@@ -1405,10 +1760,10 @@ public class PdfInkSignView extends AppCompatImageView {
     private void applyEditedValuesToRenderedFields() {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
-            if (field == null || field.name == null) continue;
+            if (field == null || field.ccfId == null) continue;
 
-            if (mEditedFieldValues.containsKey(field.name)) {
-                field.value = mEditedFieldValues.get(field.name);
+            if (mEditedFieldValues.containsKey(field.ccfId)) {
+                field.value = mEditedFieldValues.get(field.ccfId);
             }
         }
     }
@@ -1438,8 +1793,8 @@ public class PdfInkSignView extends AppCompatImageView {
                 String newValue = checked ? "Off" : "Yes";
 
                 field.value = newValue;
-                if (field.name != null) {
-                    mEditedFieldValues.put(field.name, newValue);
+                if (field.ccfId != null) {
+                    mEditedFieldValues.put(field.ccfId, newValue);
                 }
 
                 invalidate();
@@ -1496,6 +1851,7 @@ public class PdfInkSignView extends AppCompatImageView {
         PdfSignOverlay overlay = new PdfSignOverlay();
         overlay.bitmap = bitmap;
         overlay.visible = true;
+        overlay.autoImageSign = false; // 손으로 입력한 싸인
         overlay.pdfRect = new RectF(
                 field.pdfRect.left,
                 field.pdfRect.top,
@@ -1507,8 +1863,8 @@ public class PdfInkSignView extends AppCompatImageView {
 
         // sign 필드도 값이 있다는 표시를 남김
         field.value = "signed";
-        if (field.name != null && !"".equals(field.name)) {
-            mEditedFieldValues.put(field.name, "signed");
+        if (field.ccfId != null && !"".equals(field.ccfId)) {
+            mEditedFieldValues.put(field.ccfId, "signed");
         }
 
         saveCurrentPageOverlay();

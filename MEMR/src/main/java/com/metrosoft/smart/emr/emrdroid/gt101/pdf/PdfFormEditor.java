@@ -108,6 +108,9 @@ public class PdfFormEditor {
                     } else if ("sign".equalsIgnoreCase(typeName)) {
                         // 손글씨 싸인 입력용 위치 필드
                         addSignField(document, acroForm, spec, listener);
+                    } else if ("sign_image".equalsIgnoreCase(typeName)) {
+                        // 의사 사인 이미지 표시용 필드
+                        addSignImageField(document, acroForm, spec, listener);
                     } else {
                         addTextField(document, acroForm, spec, listener);
                     }
@@ -516,6 +519,109 @@ public class PdfFormEditor {
     }
 
     /**
+     * 의사 사인 이미지 표시용 sign_image 필드 생성
+     *
+     * - PDF 전자서명 필드가 아니다.
+     * - sign_AA10011, logindrsign_AA10011, login_sign_AA10011 같은 값을 가진다.
+     * - PdfInkSignView에서 이 값을 보고 실제 사인 이미지를 그린다.
+     * - 손글씨 입력용 sign과 달리 테두리를 만들지 않는다.
+     */
+    private static void addSignImageField(
+            PDDocument document,
+            PDAcroForm acroForm,
+            PdfFormTextFieldSpec spec,
+            PdfErrorListener listener
+    ) throws Exception {
+
+        if (spec == null) return;
+        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
+        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
+
+        PDField existing = acroForm.getField(spec.fieldName);
+        if (existing != null) {
+            return;
+        }
+
+        if (listener != null) listener.onError(" sign_image01");
+
+        PDPage page = document.getPage(spec.pageNo);
+        float pageHeight = page.getMediaBox().getHeight();
+
+        float pdfX = spec.x;
+        float pdfY = pageHeight - spec.y - spec.height;
+
+        PDTextField signImageField = new PDTextField(acroForm);
+        signImageField.setPartialName(spec.fieldName);
+
+        // 앱 전용 필드 타입 저장
+        signImageField.getCOSObject().setName(MS_FIELD_TYPE, "sign_image");
+
+        // sign_image는 사용자가 직접 수정하는 필드가 아니므로 readonly 권장
+        signImageField.setReadOnly(true);
+
+        String value = getSpecValue(spec);
+        if (value == null) value = "";
+
+        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
+        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
+
+        signImageField.setDefaultAppearance(fieldDA);
+        signImageField.setDefaultValue(value);
+
+        PDAnnotationWidget widget = new PDAnnotationWidget();
+
+        PDRectangle rect = new PDRectangle();
+        rect.setLowerLeftX(pdfX);
+        rect.setLowerLeftY(pdfY);
+        rect.setUpperRightX(pdfX + spec.width);
+        rect.setUpperRightY(pdfY + spec.height);
+
+        widget.setRectangle(rect);
+        widget.setPage(page);
+        widget.setParent(signImageField);
+        widget.getCOSObject().setName(MS_FIELD_TYPE, "sign_image");
+
+        try {
+            PDAppearanceCharacteristicsDictionary appearance =
+                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
+            widget.setAppearanceCharacteristics(appearance);
+        } catch (Exception ignore) {
+        }
+
+        try {
+            // sign_image는 테두리 없음
+            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
+            border.setWidth(0);
+            widget.setBorderStyle(border);
+        } catch (Exception ignore) {
+        }
+
+        try {
+            widget.getCOSObject().setString(COSName.DA, fieldDA);
+        } catch (Exception ignore) {
+        }
+
+        try {
+            // 빈 appearance를 넣어 뷰어에서 텍스트 박스처럼 보이지 않게 함
+            widget.setAppearance(createEmptyAppearance(document, rect));
+        } catch (Exception ignore) {
+        }
+
+        COSArray kids = new COSArray();
+        kids.add(widget.getCOSObject());
+        signImageField.getCOSObject().setItem(COSName.KIDS, kids);
+
+        addFieldToAcroFormRaw(acroForm, signImageField);
+        page.getAnnotations().add(widget);
+
+        // sign_image는 화면에는 이미지로 표시할 값만 내부적으로 필요하다.
+        // PDF TextField 값으로 넣으면 Edge에서 sign_AA11011 문자열이 보일 수 있다.
+        // signImageField.setValue(value);
+
+        if (listener != null) listener.onError(" sign_image10");
+    }
+
+    /**
      * 기존/신규 필드에 값 채우기
      */
     private static void fillFieldValues(
@@ -546,6 +652,13 @@ public class PdfFormEditor {
 
             if (field instanceof PDCheckBox) {
                 setCheckBoxValue((PDCheckBox) field, fieldValue);
+            } else if (isCustomType(field, "sign_image")) {
+                // sign_image는 TextField지만 값을 화면에 출력하면 안 됨.
+                field.getCOSObject().setString(
+                        COSName.getPDFName("MS_SIGN_IMAGE_VALUE"),
+                        fieldValue == null ? "" : fieldValue
+                );
+                // field.setValue(...) 호출 금지
             } else {
                 field.setValue(fieldValue == null ? "" : fieldValue);
             }
@@ -819,6 +932,46 @@ public class PdfFormEditor {
         return ap;
     }
 
+    private static PDAppearanceDictionary createEmptyAppearance(
+            PDDocument document,
+            PDRectangle rect
+    ) throws Exception {
+
+        PDAppearanceStream normalStream = createEmptyAppearanceStream(document, rect);
+
+        PDAppearanceDictionary ap = new PDAppearanceDictionary();
+        ap.setNormalAppearance(normalStream);
+
+        return ap;
+    }
+
+    private static PDAppearanceStream createEmptyAppearanceStream(
+            PDDocument document,
+            PDRectangle rect
+    ) throws Exception {
+
+        PDAppearanceStream stream = new PDAppearanceStream(document);
+        stream.setResources(new PDResources());
+
+        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
+        stream.setBBox(bbox);
+
+        PDPageContentStream cs = null;
+        try {
+            cs = new PDPageContentStream(document, stream);
+            // 아무것도 그리지 않음
+        } finally {
+            if (cs != null) {
+                try {
+                    cs.close();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+
+        return stream;
+    }
+
     /**
      * sign field 1개의 appearance stream 생성
      */
@@ -866,5 +1019,17 @@ public class PdfFormEditor {
         arr.add(new com.tom_roush.pdfbox.cos.COSFloat(g));
         arr.add(new com.tom_roush.pdfbox.cos.COSFloat(b));
         return arr;
+    }
+
+    private static boolean isCustomType(PDField field, String typeName) {
+        if (field == null || typeName == null) return false;
+
+        try {
+            String type = field.getCOSObject().getNameAsString(MS_FIELD_TYPE);
+            return typeName.equalsIgnoreCase(type);
+        } catch (Exception ignore) {
+        }
+
+        return false;
     }
 }

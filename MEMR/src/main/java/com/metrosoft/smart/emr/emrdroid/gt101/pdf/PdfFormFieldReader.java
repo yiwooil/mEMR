@@ -50,6 +50,8 @@ public class PdfFormFieldReader {
     private static final String TAG = "PdfFormFieldReader";
 
     private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
+    private static final COSName MS_SIGN_IMAGE_VALUE = COSName.getPDFName("MS_SIGN_IMAGE_VALUE");
+
     /**
      * 모든 AcroForm field를 읽는다.
      */
@@ -202,10 +204,13 @@ public class PdfFormFieldReader {
                 continue;
             }
 
+
             PdfRenderedFormField item = new PdfRenderedFormField();
+
+            item.type = getFieldType(field, widget);
+
             item.pageIndex = targetPageIndex;
-            item.name = name;
-            item.value = value;
+            item.ccfId = name;
             item.fontSizePdf = fontSizePdf;
             item.colorArgb = colorArgb;
             item.readOnly = false;
@@ -214,12 +219,24 @@ public class PdfFormFieldReader {
             } catch (Throwable ignore) {
             }
 
-            // PdfRenderedFormField에 type 멤버가 있다면 사용하는 것이 좋다.
-            // 없으면 이 줄은 제거해도 된다.
-            try {
-                item.type = getFieldType(field, widget);
-            } catch (Throwable ignore) {
-                // PdfRenderedFormField에 type이 아직 없으면 무시
+            if ("sign_image".equalsIgnoreCase(item.type)) {
+                String signValue = "";
+
+                try {
+                    signValue = field.getCOSObject().getString(MS_SIGN_IMAGE_VALUE);
+                } catch (Exception ignore) {
+                }
+
+                if ((signValue == null || "".equals(signValue)) && widget != null) {
+                    try {
+                        signValue = widget.getCOSObject().getString(MS_SIGN_IMAGE_VALUE);
+                    } catch (Exception ignore) {
+                    }
+                }
+
+                item.value = signValue == null ? "" : signValue;
+            } else {
+                item.value = value;
             }
 
             RectF pdfRect = new RectF();
@@ -289,14 +306,6 @@ public class PdfFormFieldReader {
 
             if (field instanceof PDPushButton) {
                 return "";
-            }
-
-            if (field instanceof PDSignatureField) {
-                try {
-                    return ((PDSignatureField) field).getSignature() != null ? "signed" : "";
-                } catch (Exception ignore) {
-                    return "";
-                }
             }
 
             String v = field.getValueAsString();

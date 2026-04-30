@@ -679,6 +679,11 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
             mWebView.setVisibility(View.GONE);
             mPdfView.setVisibility(View.VISIBLE);
             mPdfView.setMode(PdfInkSignView.MODE_NONE);
+
+            // EmrScanView는 하나의 PdfInkSignView로 여러 PDF 파일을 번갈아 연다.
+            // 이전 페이지 PDF의 sign_image overlay가 다음 페이지에 남지 않도록 초기화한다.
+            mPdfView.clearAllOverlays();
+
             mPdfView.openPdf(pdfFile, 0);
         } catch (Exception e) {
             showSimpleDialog("PDF 열기 오류: " + e.getMessage());

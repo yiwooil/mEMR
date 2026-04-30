@@ -440,38 +440,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         mUndoSignButton.setOnClickListener(this);
 
 
-        // 제목표시줄 밑에 있는 TEMR 로그를 TEMR 페키지만 보이도록 처리
-		/*
-        String packageName = getPackageName();
-        RelativeLayout topBgLayout = (RelativeLayout)findViewById(R.id.top_bg_layout);
-        if(!packageName.equals(EmrSettingsUtil.PACKAGE_TEMR)){
-        	topBgLayout.setVisibility(View.GONE);
-        }
-		*/
-
-        //LinearLayout buttonLayout = (LinearLayout) findViewById(R.id.button_layout);
-        //buttonLayout.setVisibility(View.GONE);
-
-		/* 2022.12.15 WOOIL - 별도 처리 부분 막음
-		if("SHW-M380S".equalsIgnoreCase(Build.MODEL)){
-			// 숨김
-			LinearLayout bottomLayout  = (LinearLayout) findViewById(R.id.bottom_layout);
-			bottomLayout.setVisibility(View.GONE);
-		}
-		*/
-
         LinearLayout linearLayout = (LinearLayout) findViewById(R.id.view_layout);
         LayoutParams layoutParams = new LayoutParams(LayoutParams.FILL_PARENT, LayoutParams.FILL_PARENT);
 
-        // 사인용 뷰 추가
-		/*
-		mMyView = new MyView(this, penWidth, eraserWidth);
-		mMyView.setLayoutParams(layoutParams);
-		linearLayout.addView(mMyView, linearLayout.getChildCount()-1);
-		mMyView.setVisibility(View.GONE);
-		*/
-
-        //int penColorValue = getResources().getColor(R.color.pencolor);
         // 2021.08.25 WOOIL - 저장된 펜색을 초기치로 설정한다.
         int penColorValue = getResources().getColor(R.color.pencolor);
         if ("검정".equalsIgnoreCase(penColor)) penColorValue = Color.BLACK;
@@ -518,18 +489,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         return;
                     }
                     // 2026.02.10 WOOIL - 의사 정보이면 의사를 변경하는 기능이 보이게...
-                    String field = value.getField();
-                    if ("drnm".equalsIgnoreCase(field) || "drnm_eng".equalsIgnoreCase(field)) { // 주치의 명(영문명)
-                        // 의사명(영문명)을 보여준다.
-                        setApplyDrnm(value.getValue());
-                        mApplyDrnmLabel.setVisibility(View.VISIBLE); // 의사 정보를 보여주고 선택하는 창을 띄우자
-                        mApplyDrnm.setVisibility(View.VISIBLE); // 의사 정보를 보여주고 선택하는 창을 띄우자
-                    } else if ("dptcd".equalsIgnoreCase(field) || "dptnm".equalsIgnoreCase(field)) {
-                        // 진료과를 보여준다.
-                        setApplyDptnm(value.getValue());
-                        mApplyDptnmLabel.setVisibility(View.VISIBLE); // 진료과 정보를 보여주고 선택하는 창을 띄우자
-                        mApplyDptnm.setVisibility(View.VISIBLE); // 진료과 정보를 보여주고 선택하는 창을 띄우자
-                    }
+                    setEditFieldVisible(value.getField(), value.getValue());
                 }
             });
             // 2021.08.06 WOOIL - 펜의 색을 사용자가 변경할 수 있는 기능 추가
@@ -558,20 +518,24 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     showPdfSignFieldEditDialog(pdfView, field);
                 }
             });
+            pdfView.setOnPdfFieldValueChangedListener(
+                new PdfInkSignView.OnPdfFieldValueChangedListener() {
+                    @Override
+                    public void onPdfFieldValueChanged(int index, PdfRenderedFormField field) {
+                        // 임시 저장한 것이거나 저장한 것을 다시 불러온 경우에는 보이지 않게 한다.
+                        if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
+                            return;
+                        }
+                        setEditFieldVisible(field.ccfId, field.value);
+                    }
+                }
+            );
             mPdfViewList.add(pdfView);
             linearLayout.addView(pdfView, linearLayout.getChildCount() - 1);
         }
 
         // 2026.04.16 WOOIL -
         applyCurrentToolSettingsToPdfViews();
-
-        // 확대축소용 뷰 추가
-		/*
-		mSiView = new ScaleImageView(this);
-		mSiView.setLayoutParams(layoutParams);
-		linearLayout.addView(mSiView, linearLayout.getChildCount()-1);
-		mSiView.setVisibility(View.GONE);
-		*/
 
         if (savedInstanceState == null) {
             if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
@@ -603,6 +567,21 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             setRecordButtonText("녹음");
             mXml = savedInstanceState.getString("xml");
             afterGetCertificatePaper();
+        }
+    }
+
+    private void setEditFieldVisible(String ccfId, String fieldValue) {
+        // 의사 정보이면 의사를 변경하는 기능이 보이게...
+        if ("drnm".equalsIgnoreCase(ccfId) || "drnm_eng".equalsIgnoreCase(ccfId)) { // 주치의 명(영문명)
+            // 의사명(영문명)을 보여준다.
+            setApplyDrnm(fieldValue);
+            mApplyDrnmLabel.setVisibility(View.VISIBLE); // 의사 정보를 보여주고 선택하는 창을 띄우자
+            mApplyDrnm.setVisibility(View.VISIBLE); // 의사 정보를 보여주고 선택하는 창을 띄우자
+        } else if ("dptcd".equalsIgnoreCase(ccfId) || "dptnm".equalsIgnoreCase(ccfId)) {
+            // 진료과를 보여준다.
+            setApplyDptnm(fieldValue);
+            mApplyDptnmLabel.setVisibility(View.VISIBLE); // 진료과 정보를 보여주고 선택하는 창을 띄우자
+            mApplyDptnm.setVisibility(View.VISIBLE); // 진료과 정보를 보여주고 선택하는 창을 띄우자
         }
     }
 
@@ -2365,12 +2344,25 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                 for (int i = 0; i < mPageCount; i++) {
                                     boolean changed = false;
                                     if ("".equalsIgnoreCase(dptcd) || "".equalsIgnoreCase(dptnm)) {
-                                        changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid);
+                                        if (mIsPdfConsent) {
+                                            changed = mPdfViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid);
+                                        } else {
+                                            changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid);
+                                        }
                                     } else {
-                                        changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid, dptcd, dptnm);
+                                        if (mIsPdfConsent) {
+                                            changed = mPdfViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid, dptcd, dptnm);
+                                        } else {
+                                            changed = mMyViewList.get(i).injectCcfValue4Doctor(drid, drnm, drnm_eng, gdrlcid, sdrlcid, dptcd, dptnm);
+                                        }
                                     }
 
-                                    boolean changed_drsign = mMyViewList.get(i).injectCcfValue4DrSign(drsign);
+                                    boolean changed_drsign = false;
+                                    if (mIsPdfConsent) {
+                                        changed_drsign = mPdfViewList.get(i).injectCcfValue4DrSign(drsign);
+                                    } else {
+                                        changed_drsign = mMyViewList.get(i).injectCcfValue4DrSign(drsign);
+                                    }
                                     if (changed_drsign) {
                                         // 의사 사인 이미지를 새로 불러온다.
                                         String hospitalId = getHospitalId();
@@ -2389,7 +2381,13 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                         Utils.downFile(mActivity, fullUrl, dstPath);
                                     }
 
-                                    if (changed || changed_drsign) mMyViewList.get(i).postInvalidate();
+                                    if (changed || changed_drsign) {
+                                        if (mIsPdfConsent) {
+                                            mPdfViewList.get(i).postInvalidate();
+                                        } else {
+                                            mMyViewList.get(i).postInvalidate();
+                                        }
+                                    }
                                 }
 
                             }
@@ -2421,8 +2419,13 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
                                 setApplyDptnm(dptnm);
                                 for (int i = 0; i < mPageCount; i++) {
-                                    boolean changed = mMyViewList.get(i).injectCcfValue4Dept(dptcd, dptnm);
-                                    if (changed) mMyViewList.get(i).postInvalidate();
+                                    if (mIsPdfConsent) {
+                                        boolean changed = mPdfViewList.get(i).injectCcfValue4Dept(dptcd, dptnm);
+                                        if (changed) mPdfViewList.get(i).postInvalidate();
+                                    } else {
+                                        boolean changed = mMyViewList.get(i).injectCcfValue4Dept(dptcd, dptnm);
+                                        if (changed) mMyViewList.get(i).postInvalidate();
+                                    }
                                 }
 
                             }
@@ -3280,7 +3283,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         editText.setText(field.value == null ? "" : field.value);
         editText.setSelection(editText.getText().length());
 
-        String title = field.name == null ? "텍스트 입력" : field.name;
+        String title = field.ccfId == null ? "텍스트 입력" : field.ccfId;
+        title = "입력";
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(title);
@@ -3290,7 +3294,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String newValue = editText.getText().toString();
-                pdfView.updateFieldValue(field.name, newValue);
+                pdfView.updateFieldValue(field.ccfId, newValue);
                 dialog.dismiss();
             }
         });
