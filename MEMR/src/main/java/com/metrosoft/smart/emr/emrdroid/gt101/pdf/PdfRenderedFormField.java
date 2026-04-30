@@ -8,7 +8,7 @@ import android.graphics.RectF;
  */
 public class PdfRenderedFormField {
     public int pageIndex;
-    public String name;
+    public String ccfId;
     public String value;
     public String type;      // 추가
     public float fontSizePdf;

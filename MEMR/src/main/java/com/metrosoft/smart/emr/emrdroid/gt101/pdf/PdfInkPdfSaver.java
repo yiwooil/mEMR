@@ -31,6 +31,8 @@ import java.util.Map;
 
 public class PdfInkPdfSaver {
 
+    private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
+
     public static void saveAllPages(Context context, File srcPdf, File outPdf, PdfInkSignView view) throws IOException {
 
         PDFBoxResourceLoader.init(context);
@@ -116,6 +118,12 @@ public class PdfInkPdfSaver {
             try {
                 if (field instanceof PDCheckBox) {
                     setCheckBoxValue((PDCheckBox) field, fieldValue);
+                } else if (isCustomType(field, "sign") || isCustomType(field, "sign_image")) {
+                    // sign/sign_image는 이미지로 처리하므로 PDF TextField 값으로 문자열을 넣지 않음
+                    field.getCOSObject().setString(
+                            COSName.getPDFName("MS_SIGN_IMAGE_VALUE"),
+                            fieldValue == null ? "" : fieldValue
+                    );
                 } else if ("signed".equalsIgnoreCase(fieldValue)) {
                     // sign 필드는 이미지로 저장하므로 문자열 값은 넣지 않음
                 } else {
@@ -300,5 +308,16 @@ public class PdfInkPdfSaver {
         }
     }
 
+    private static boolean isCustomType(PDField field, String typeName) {
+        if (field == null || typeName == null) return false;
+
+        try {
+            String type = field.getCOSObject().getNameAsString(MS_FIELD_TYPE);
+            return typeName.equalsIgnoreCase(type);
+        } catch (Exception ignore) {
+        }
+
+        return false;
+    }
 
 }
