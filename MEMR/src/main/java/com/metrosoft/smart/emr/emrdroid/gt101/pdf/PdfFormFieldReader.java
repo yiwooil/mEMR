@@ -50,8 +50,9 @@ public class PdfFormFieldReader {
     private static final String TAG = "PdfFormFieldReader";
 
     private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
+    private static final COSName MS_CCF_FIELD = COSName.getPDFName("MS_CCF_FIELD");
     private static final COSName MS_SIGN_IMAGE_VALUE = COSName.getPDFName("MS_SIGN_IMAGE_VALUE");
-
+    private static final COSName MS_GROUP_NAME = COSName.getPDFName("MS_GROUP_NAME");
     /**
      * 모든 AcroForm field를 읽는다.
      */
@@ -207,17 +208,27 @@ public class PdfFormFieldReader {
 
             PdfRenderedFormField item = new PdfRenderedFormField();
 
-            item.type = getFieldType(field, widget);
+            item.type = getFieldTypeCustom(field, widget);
 
             item.pageIndex = targetPageIndex;
-            item.ccfId = name;
+
+            // PDF 실제 AcroForm 필드명
+            // 예: drnm_001, drnm_002
+            item.name = name;
+
+            // 값 매핑용 논리 필드명
+            // 예: drnm, dptnm, yyyymmdd
+            item.ccfField = getCcfField(field, widget);
+            if ("".equals(safe(item.ccfField))) {
+                item.ccfField = item.name;
+            }
+
+            // radio 그룹명
+            item.groupName = getGroupName(field, widget);
+
             item.fontSizePdf = fontSizePdf;
             item.colorArgb = colorArgb;
-            item.readOnly = false;
-            try {
-                item.readOnly = field.isReadOnly();
-            } catch (Throwable ignore) {
-            }
+            item.readOnly = isFieldReadOnly(field);
 
             if ("sign_image".equalsIgnoreCase(item.type)) {
                 String signValue = "";
@@ -245,6 +256,9 @@ public class PdfFormFieldReader {
             pdfRect.right = r.getUpperRightX();
             pdfRect.top = r.getUpperRightY();
             item.pdfRect = pdfRect;
+
+            safeAddDebug(debugTextList,
+                    "-> terminal field type=" + item.type + ", name=" + name + ", value=" + value);
 
             if (item.isValid()) {
                 result.add(item);
@@ -466,7 +480,7 @@ public class PdfFormFieldReader {
         }
     }
 
-    private static String getFieldType(PDField field, PDAnnotationWidget widget) {
+    private static String getFieldTypeCustom(PDField field, PDAnnotationWidget widget) {
         String customType = "";
 
         try {
@@ -493,4 +507,62 @@ public class PdfFormFieldReader {
 
         return "";
     }
+
+    private static String safe(String s) {
+        return s == null ? "" : s;
+    }
+
+    private static String getCcfField(PDField field, PDAnnotationWidget widget) {
+        String ccfField = "";
+
+        try {
+            ccfField = field.getCOSObject().getString(MS_CCF_FIELD);
+        } catch (Exception ignore) {
+        }
+
+        if ("".equals(safe(ccfField)) && widget != null) {
+            try {
+                ccfField = widget.getCOSObject().getString(MS_CCF_FIELD);
+            } catch (Exception ignore) {
+            }
+        }
+
+        return safe(ccfField).trim();
+    }
+
+    private static boolean isFieldReadOnly(PDField field) {
+        if (field == null) return false;
+
+        try {
+            if (field.isReadOnly()) return true;
+        } catch (Exception ignore) {
+        }
+
+        try {
+            int ff = field.getCOSObject().getInt(COSName.FF, 0);
+            return (ff & 1) != 0; // bit 1 = ReadOnly
+        } catch (Exception ignore) {
+        }
+
+        return false;
+    }
+
+    private static String getGroupName(PDField field, PDAnnotationWidget widget) {
+        String groupName = "";
+
+        try {
+            groupName = field.getCOSObject().getString(MS_GROUP_NAME);
+        } catch (Exception ignore) {
+        }
+
+        if ("".equals(safe(groupName)) && widget != null) {
+            try {
+                groupName = widget.getCOSObject().getString(MS_GROUP_NAME);
+            } catch (Exception ignore) {
+            }
+        }
+
+        return safe(groupName).trim();
+    }
+
 }

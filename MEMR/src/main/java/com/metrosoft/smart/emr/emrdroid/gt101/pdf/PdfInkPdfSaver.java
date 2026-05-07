@@ -33,7 +33,7 @@ public class PdfInkPdfSaver {
 
     private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
 
-    public static void saveAllPages(Context context, File srcPdf, File outPdf, PdfInkSignView view) throws IOException {
+    public static void saveAllPages(Context context, File srcPdf, File outPdf, PdfInkSignView view, PdfDebugListener listener) throws IOException {
 
         PDFBoxResourceLoader.init(context);
 
@@ -41,13 +41,14 @@ public class PdfInkPdfSaver {
         try {
             document = PDDocument.load(srcPdf);
 
-            // 1. 사용자가 수정한 form field 값(text / checkbox)을 먼저 반영
-            saveEditedFormFields(document, view);
-
-            // 2. 페이지별 펜 stroke / 서명 저장
+            // 1. 페이지별 펜 stroke / 서명 저장
             HashMap<Integer, ArrayList<PdfInkStroke>> allPageStrokes = view.getAllPageStrokes();
             HashMap<Integer, HashMap<String, PdfSignOverlay>> allPageSigns =
                     view.getAllPageSignOverlays();
+
+            // 2. 사용자가 수정한 form field 값(text / checkbox)을 먼저 반영
+            saveEditedFormFields(document, view, allPageSigns, listener);
+
 
             for (int pageIndex = 0; pageIndex < document.getNumberOfPages(); pageIndex++) {
                 PDPage page = document.getPage(pageIndex);
@@ -85,8 +86,16 @@ public class PdfInkPdfSaver {
      * - checkbox : Yes / Off 계열로 저장
      * - text     : 문자열 그대로 저장
      */
-    private static void saveEditedFormFields(PDDocument document, PdfInkSignView view) throws IOException {
+    private static void saveEditedFormFields(
+            PDDocument document,
+            PdfInkSignView view,
+            HashMap<Integer, HashMap<String, PdfSignOverlay>> allPageSigns,
+            PdfDebugListener listener
+    ) throws IOException {
+
         if (document == null || view == null) return;
+
+        if (listener != null) listener.onError(" save - 101");
 
         PDAcroForm acroForm = null;
         try {
@@ -98,48 +107,69 @@ public class PdfInkPdfSaver {
 
         if (acroForm == null) return;
 
+        if (listener != null) listener.onError(" save - 102");
+
         Map<String, String> editedValues = view.getEditedFieldValues();
-        if (editedValues == null || editedValues.isEmpty()) return;
 
-        for (Map.Entry<String, String> entry : editedValues.entrySet()) {
-            String fieldName = entry.getKey();
-            String fieldValue = entry.getValue();
+        if (listener != null) listener.onError(" save - 103");
 
-            if (fieldName == null || "".equals(fieldName.trim())) continue;
+        List<PDField> fields = acroForm.getFields();
 
-            PDField field = null;
-            try {
-                field = acroForm.getField(fieldName);
-            } catch (Exception ignore) {
-            }
-
+        for (int i = 0; i < fields.size(); i++) {
+            PDField field = fields.get(i);
             if (field == null) continue;
+
+            String fieldName = field.getFullyQualifiedName();
+            if (fieldName == null || "".equals(fieldName)) continue;
+
+            String fieldValue = null;
+
+            // 1. 사용자가 수정한 값 우선
+            if (editedValues != null && editedValues.containsKey(fieldName)) {
+                fieldValue = editedValues.get(fieldName);
+            } else {
+                // 2. 기존 PDF 값 사용 (기본값)
+                try {
+                    fieldValue = field.getValueAsString();
+                } catch (Exception ignore) {
+                }
+            }
 
             try {
                 if (field instanceof PDCheckBox) {
                     setCheckBoxValue((PDCheckBox) field, fieldValue);
+
                 } else if (isCustomType(field, "sign") || isCustomType(field, "sign_image")) {
-                    // sign/sign_image는 이미지로 처리하므로 PDF TextField 값으로 문자열을 넣지 않음
+                    // sign_image는 value 대신 custom에 저장
                     field.getCOSObject().setString(
                             COSName.getPDFName("MS_SIGN_IMAGE_VALUE"),
                             fieldValue == null ? "" : fieldValue
                     );
+
                 } else if ("signed".equalsIgnoreCase(fieldValue)) {
-                    // sign 필드는 이미지로 저장하므로 문자열 값은 넣지 않음
+                    // skip
+
                 } else {
                     field.setValue(fieldValue == null ? "" : fieldValue);
                 }
+
             } catch (Exception ignore) {
             }
         }
 
+        if (listener != null) listener.onError(" save - 104");
         try {
+            // 다른 뷰어e가 자체적으로 다시 그리지 않고, 우리가 만든 appearance를 사용하게 한다.
             acroForm.setNeedAppearances(false);
         } catch (Exception ignore) {
         }
 
+        if (listener != null) listener.onError(" save - 105");
+
         // 문서의 모든 form field를 readonly 처리
-        setAllFieldsReadOnly(acroForm);
+        setAllFieldsReadOnly(acroForm, allPageSigns);
+
+        if (listener != null) listener.onError(" save - 106");
     }
 
     private static void savePageInkAnnotations(PDDocument document, PDPage page, List<PdfInkStroke> strokes) throws IOException {
@@ -272,7 +302,10 @@ public class PdfInkPdfSaver {
         return new PDColor(rgb, PDDeviceRGB.INSTANCE);
     }
 
-    private static void setAllFieldsReadOnly(PDAcroForm acroForm) {
+    private static void setAllFieldsReadOnly(
+            PDAcroForm acroForm,
+            HashMap<Integer, HashMap<String, PdfSignOverlay>> allPageSigns
+    ) {
         if (acroForm == null) return;
 
         try {
@@ -280,27 +313,42 @@ public class PdfInkPdfSaver {
             if (fields == null) return;
 
             for (int i = 0; i < fields.size(); i++) {
-                setFieldAndChildrenReadOnly(fields.get(i), true);
+                setFieldAndChildrenReadOnly(fields.get(i), true, allPageSigns);
             }
         } catch (Exception ignore) {
         }
     }
 
-    private static void setFieldAndChildrenReadOnly(PDField field, boolean readOnly) {
+    private static void setFieldAndChildrenReadOnly(
+            PDField field,
+            boolean readOnly,
+            HashMap<Integer, HashMap<String, PdfSignOverlay>> allPageSigns
+    ) {
         if (field == null) return;
 
+        boolean applyReadOnly = readOnly;
+
+        if (readOnly && isCustomType(field, "sign")) {
+            if (hasSignOverlayForField(field, allPageSigns)) {
+                // 이번 저장에서 실제 싸인이 들어간 sign 필드
+                applyReadOnly = true;
+            } else {
+                // 이번 저장 overlay에는 없지만, 기존 저장 PDF에서 이미 readonly였을 수 있음
+                // 이 경우 readonly를 풀면 안 됨
+                applyReadOnly = isFieldReadOnly(field);
+            }
+        }
         try {
-            field.setReadOnly(readOnly);
+            field.setReadOnly(applyReadOnly);
         } catch (Exception ignore) {
         }
 
-        // children은 PDNonTerminalField에만 있음
         if (field instanceof PDNonTerminalField) {
             try {
                 List<PDField> children = ((PDNonTerminalField) field).getChildren();
                 if (children != null) {
                     for (int i = 0; i < children.size(); i++) {
-                        setFieldAndChildrenReadOnly(children.get(i), readOnly);
+                        setFieldAndChildrenReadOnly(children.get(i), readOnly, allPageSigns);
                     }
                 }
             } catch (Exception ignore) {
@@ -308,12 +356,66 @@ public class PdfInkPdfSaver {
         }
     }
 
+
     private static boolean isCustomType(PDField field, String typeName) {
         if (field == null || typeName == null) return false;
 
         try {
             String type = field.getCOSObject().getNameAsString(MS_FIELD_TYPE);
             return typeName.equalsIgnoreCase(type);
+        } catch (Exception ignore) {
+        }
+
+        return false;
+    }
+
+    private static boolean hasSignOverlayForField(
+            PDField field,
+            HashMap<Integer, HashMap<String, PdfSignOverlay>> allPageSigns
+    ) {
+        if (field == null || allPageSigns == null) return false;
+
+        String fieldName = "";
+        try {
+            fieldName = field.getFullyQualifiedName();
+        } catch (Exception ignore) {
+        }
+
+        if (fieldName == null || "".equals(fieldName.trim())) {
+            try {
+                fieldName = field.getPartialName();
+            } catch (Exception ignore) {
+            }
+        }
+
+        if (fieldName == null || "".equals(fieldName.trim())) return false;
+
+        for (Integer pageIndex : allPageSigns.keySet()) {
+            HashMap<String, PdfSignOverlay> signMap = allPageSigns.get(pageIndex);
+            if (signMap == null) continue;
+
+            PdfSignOverlay overlay = signMap.get(fieldName);
+            if (overlay == null) continue;
+            if (!overlay.visible) continue;
+            if (overlay.bitmap == null || overlay.bitmap.isRecycled()) continue;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isFieldReadOnly(PDField field) {
+        if (field == null) return false;
+
+        try {
+            if (field.isReadOnly()) return true;
+        } catch (Exception ignore) {
+        }
+
+        try {
+            int ff = field.getCOSObject().getInt(COSName.FF, 0);
+            return (ff & 1) != 0;
         } catch (Exception ignore) {
         }
 
