@@ -55,9 +55,9 @@ import com.metrosoft.smart.emr.emrdroid.gt101.R;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValues;
 import com.metrosoft.smart.emr.emrdroid.gt101.helper.ResultSetHelper;
-import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfErrorListener;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfDebugListener;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormEditor;
-import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormTextFieldSpec;
+import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfFormFieldSpec;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkPdfSaver;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfInkSignView;
 import com.metrosoft.smart.emr.emrdroid.gt101.pdf.PdfRenderedFormField;
@@ -188,6 +188,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     public Thread.UncaughtExceptionHandler getDefaultUncaughtExceptionHandler() {
         return mDefaultUncaughtExceptionHandler;
     }
+
+    String mDebugMsg = "";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -526,7 +528,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
                             return;
                         }
-                        setEditFieldVisible(field.ccfId, field.value);
+                        setEditFieldVisible(field.name, field.value);
                     }
                 }
             );
@@ -963,28 +965,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         return bitmap;
     }
 	
-	/*
-	private Bitmap compressBitmap(Bitmap bitmap){
-		ByteArrayOutputStream stream = new ByteArrayOutputStream();
-		bitmap.compress(Bitmap.CompressFormat.JPEG, 40, stream);
-		byte[] byteArray = stream.toByteArray();
-		Bitmap compressedBitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.length);
-		return compressedBitmap;
-	}
-	*/
-	
-	/*
-	private Bitmap getResizeBitmap(Bitmap bitmap){
-		ByteArrayOutputStream stream = new ByteArrayOutputStream();
-		bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
-		byte[] byteArray = stream.toByteArray();
-		BitmapFactory.Options options = new BitmapFactory.Options();
-		options.inSampleSize = 6;
-		Bitmap resizeBitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.length, options);
-		return resizeBitmap;
-	}
-	*/
-
 	private void setDongExdtText(final  String text) {
         runOnUiThread(new Runnable() {
 
@@ -1043,6 +1023,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private void saveSignImage(final String preSave) {
         showProgressDialog(getString(R.string.process_wait_message));
 
+        mDebugMsg = "";
+
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -1081,7 +1063,13 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             File srcPdf = new File(mPdfFilePathList.get(pageIdx));
                             File outPdf = new File(dirPath + File.separator + "consentform_" + pageIdx + ".pdf");
 
-                            PdfInkPdfSaver.saveAllPages(ConsentForm.this, srcPdf, outPdf, pdfView);
+                            PdfInkPdfSaver.saveAllPages(ConsentForm.this, srcPdf, outPdf, pdfView,
+                                new PdfDebugListener() {
+                                    @Override
+                                    public void onError(String msg) {
+                                        mDebugMsg += msg + ",";
+                                    }
+                            });
                             savedPdfList.add(outPdf.getAbsolutePath());
                         }
                     } else {
@@ -1178,7 +1166,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         handler.post(new Runnable() {
                             public void run() {
                                 mDialog.dismiss();
-                                showSaveXml();
+                                showSaveXml("");
                             }
                         });
                         return;
@@ -1250,7 +1238,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                 handler.post(new Runnable() {
                                     public void run() {
                                         mDialog.dismiss();
-                                        showSaveXml();
+                                        showSaveXml("");
                                     }
                                 });
                                 return;
@@ -1289,7 +1277,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             handler.post(new Runnable() {
                                 public void run() {
                                     mDialog.dismiss();
-                                    showSaveXml();
+                                    showSaveXml("");
                                 }
                             });
                             Log.d("EmrDroid", "uploadPngFile error=" + mSaveXml);
@@ -1316,7 +1304,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                     handler.post(new Runnable() {
                                         public void run() {
                                             mDialog.dismiss();
-                                            showSaveXml();
+                                            showSaveXml("");
                                         }
                                     });
                                     return;
@@ -1346,7 +1334,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                                     handler.post(new Runnable() {
                                         public void run() {
                                             mDialog.dismiss();
-                                            showSaveXml();
+                                            showSaveXml("");
                                         }
                                     });
                                     return;
@@ -1483,7 +1471,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                             handler.post(new Runnable() {
                                 public void run() {
                                     mDialog.dismiss();
-                                    showSaveXml();
+                                    showSaveXml("");
                                 }
                             });
                             return;
@@ -1500,7 +1488,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     handler.post(new Runnable() {
                         public void run() {
                             mDialog.dismiss();
-                            showSaveXml();
+                            showSaveXml(mDebugMsg);
                         }
                     });
                 } catch (IOException e) {
@@ -1517,7 +1505,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     }
 
 
-    private void showSaveXml() {
+    private void showSaveXml(final String debugMsg) {
         // 서버에서 돌려주는 값 뒤에 엔터문자가 있다.
         if (mSaveXml == null) {
             if (getXmlError() == true)
@@ -1539,6 +1527,9 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
         // 성공하면 종료한다.
         String message = getString(R.string.save_success);
+        //if (!"".equalsIgnoreCase(debugMsg)) {
+        //    message += "\n" + debugMsg;
+        //}
 
         AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
         alertDialogBuilder
@@ -2960,63 +2951,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         }
     }
 
-    // 2026.04.14 WOOIL - PDF 동의서 저장처리
-    private void savePdfConsent(final String preSave) {
-        showProgressDialog(getString(R.string.process_wait_message));
-
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    String dirPath = getFilesDir().getAbsolutePath();
-                    File dir = new File(dirPath);
-                    if (!dir.exists()) {
-                        dir.mkdirs();
-                    }
-
-                    // 페이지별 PDF를 각각 저장
-                    ArrayList<String> savedPdfList = new ArrayList<String>();
-
-                    for (int i = 0; i < mPdfViewList.size(); i++) {
-                        setDialogMessage((i + 1) + "/" + mPdfViewList.size() + " PDF 저장 중입니다.");
-
-                        PdfInkSignView pdfView = mPdfViewList.get(i);
-                        File srcPdf = new File(mPdfFilePathList.get(i));
-                        File outPdf = new File(dirPath + File.separator + "consentform_" + i + ".pdf");
-
-                        PdfInkPdfSaver.saveAllPages(ConsentForm.this, srcPdf, outPdf, pdfView);
-                        savedPdfList.add(outPdf.getAbsolutePath());
-                    }
-
-                    // TODO:
-                    // 여기 아래는 서버 저장부에 맞게 별도 처리 필요
-                    // 현재 기존 로직은 png/jpg 업로드 기준일 가능성이 큼
-
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                mDialog.dismiss();
-                            } catch (Exception ignore) {}
-                            Toast.makeText(mActivity, "PDF 저장이 완료되었습니다.", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-
-                } catch (final Exception ex) {
-                    handler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                mDialog.dismiss();
-                            } catch (Exception ignore) {}
-                            showSimpleDialog(ex.getMessage());
-                        }
-                    });
-                }
-            }
-        }).start();
-    }
-
     // 2026.04.15 WOOIL - NULL 방지
     private String nvl(String s) {
         return s == null ? "" : s;
@@ -3096,7 +3030,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             if (!srcPdf.exists()) continue;
 
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-3)(pdf)");
-            List<PdfFormTextFieldSpec> fields = buildPdfFormFieldSpecList(i);
+            List<PdfFormFieldSpec> fields = buildPdfFormFieldSpecList(i);
 
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-4)(pdf)");
             Map<String, String> values = buildPdfFieldValues(i);
@@ -3140,7 +3074,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     valuesToFill, // 필드명과 값
                     null,   // 사인(signatures)
                     false,   // 필드값 수정 못하게 고정 여부
-                    new PdfErrorListener() {
+                    new PdfDebugListener() {
                         @Override
                         public void onError(String msg) {
                             //showSimpleDialogThread(msg);
@@ -3198,8 +3132,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     /**
      * PdfFormTextFieldSpec 리스트 생성
      */
-    private List<PdfFormTextFieldSpec> buildPdfFormFieldSpecList(int pageIndex) {
-        List<PdfFormTextFieldSpec> list = new ArrayList<PdfFormTextFieldSpec>();
+    private List<PdfFormFieldSpec> buildPdfFormFieldSpecList(int pageIndex) {
+        List<PdfFormFieldSpec> list = new ArrayList<PdfFormFieldSpec>();
 
         try {
             if (pageIndex < 0 || pageIndex >= mCcfValueXml.length) {
@@ -3215,22 +3149,25 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             int rsCount = rsHelper.getRecordCount();
 
             for (int i = 0; i < rsCount; i++) {
-                String ccfField   = nvl(rsHelper.getString(i, "ccf_field")).trim();
-                String ccfX       = nvl(rsHelper.getString(i, "ccf_x"));
-                String ccfY       = nvl(rsHelper.getString(i, "ccf_y"));
-                String ccfH       = nvl(rsHelper.getString(i, "ccf_h"));
-                String ccfW       = nvl(rsHelper.getString(i, "ccf_w"));
-                String ccfValue   = nvl(rsHelper.getString(i, "ccf_value"));
-                String ccfTypeName = nvl(rsHelper.getString(i, "ccf_type_name")).trim();
+                String ccfField     = nvl(rsHelper.getString(i, "ccf_field")).trim();
+                String ccfX         = nvl(rsHelper.getString(i, "ccf_x"));
+                String ccfY         = nvl(rsHelper.getString(i, "ccf_y"));
+                String ccfH         = nvl(rsHelper.getString(i, "ccf_h"));
+                String ccfW         = nvl(rsHelper.getString(i, "ccf_w"));
+                String ccfValue     = nvl(rsHelper.getString(i, "ccf_value"));
+                String ccfTypeName  = nvl(rsHelper.getString(i, "ccf_type_name")).trim();
+                String ccfGroupName = nvl(rsHelper.getString(i, "ccf_group_name")).trim();
 
                 if ("".equals(ccfField)) continue;
 
-                PdfFormTextFieldSpec spec = new PdfFormTextFieldSpec();
+                PdfFormFieldSpec spec = new PdfFormFieldSpec();
 
                 // 필드명
                 spec.pageNo = 0; // 첫 번째 페이지로 고정
-                spec.fieldName = ccfField;
+                spec.fieldName = ccfField + i; // form field 이름이 중복되면 안된다.
+                spec.ccfField = ccfField;
                 spec.value = ccfValue;
+                spec.groupName = ccfGroupName; // radio 버튼인 경우 하나만 선택되게 처리하기 위한 변수
 
                 // 좌표 / 크기
                 spec.x = Utils.toFloat(ccfX);
@@ -3242,12 +3179,10 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 spec.fontSize = 10;
 
                 // 타입
-                if ("".equals(ccfTypeName) || "label".equals(ccfTypeName)) {
-                    spec.typeName = "text";
-                    spec.readOnly = true;
+                if ("".equals(ccfTypeName)) {
+                    spec.typeName = "label";
                 } else {
                     spec.typeName = ccfTypeName;
-                    spec.readOnly = false;
                 }
 
                 list.add(spec);
@@ -3258,8 +3193,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 String drnm = nvl(mApplyDrnm.getText().toString()).trim();
                 if (!"".equals(drnm)) {
                     for (int i = 0; i < list.size(); i++) {
-                        PdfFormTextFieldSpec spec = list.get(i);
-                        if ("drnm".equalsIgnoreCase(spec.fieldName)) {
+                        PdfFormFieldSpec spec = list.get(i);
+                        if ("drnm".equalsIgnoreCase(spec.ccfField)) {
                             spec.value = drnm;
                         }
                     }
@@ -3283,7 +3218,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         editText.setText(field.value == null ? "" : field.value);
         editText.setSelection(editText.getText().length());
 
-        String title = field.ccfId == null ? "텍스트 입력" : field.ccfId;
+        String title = field.name == null ? "텍스트 입력" : field.name;
         title = "입력";
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -3294,7 +3229,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String newValue = editText.getText().toString();
-                pdfView.updateFieldValue(field.ccfId, newValue);
+                pdfView.updateFieldValue(field.name, newValue);
                 dialog.dismiss();
             }
         });

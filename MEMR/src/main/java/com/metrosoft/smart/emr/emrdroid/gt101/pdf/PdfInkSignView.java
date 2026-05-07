@@ -21,6 +21,8 @@ import android.view.ViewConfiguration;
 
 import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
 import com.metrosoft.smart.emr.emrdroid.gt101.view.FingerPaintView3;
+import com.tom_roush.pdfbox.cos.COSName;
+import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
 
 import java.io.File;
 import java.io.IOException;
@@ -396,7 +398,7 @@ public class PdfInkSignView extends AppCompatImageView {
                     type = f.type;
                 } catch (Throwable ignore) {
                 }
-                mDebugTextList.add("form-field = " + safe(f.ccfId) + " / " + safe(type) + " / " + safe(f.value));
+                mDebugTextList.add("form-field = " + safe(f.name) + " / " + safe(type) + " / " + safe(f.value));
             }
 
             setRenderedFormFields(fields);
@@ -599,7 +601,7 @@ public class PdfInkSignView extends AppCompatImageView {
 
             // 손으로 입력한 싸인만 외곽 박스 표시
             if (!overlay.autoImageSign) {
-                canvas.drawRect(screenRect, signFramePaint);
+                //canvas.drawRect(screenRect, signFramePaint);
             }
         }
     }
@@ -1252,10 +1254,15 @@ public class PdfInkSignView extends AppCompatImageView {
         float textCenterY = screenRect.centerY();
         float y = textCenterY - ((fm.ascent + fm.descent) / 2f);
 
-        Paint debugPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        debugPaint.setStyle(Paint.Style.STROKE);
-        debugPaint.setStrokeWidth(2f);
-        debugPaint.setColor(Color.GREEN);
+        Paint editablePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        editablePaint.setStyle(Paint.Style.STROKE);
+        editablePaint.setStrokeWidth(2f);
+        editablePaint.setColor(Color.GREEN);
+
+        Paint editingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        editingPaint.setStyle(Paint.Style.STROKE);
+        editingPaint.setStrokeWidth(2f);
+        editingPaint.setColor(Color.BLUE);
 
         Paint shapePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shapePaint.setColor(field.colorArgb);
@@ -1265,7 +1272,8 @@ public class PdfInkSignView extends AppCompatImageView {
         if ("text".equalsIgnoreCase(type)
                 || "combo".equalsIgnoreCase(type)
                 || "listbox".equalsIgnoreCase(type)
-                || "choice".equalsIgnoreCase(type)) {
+                || "choice".equalsIgnoreCase(type)
+                || "label".equalsIgnoreCase(type)) {
 
             canvas.drawText(safe(field.value), x, y, formTextPaint);
 
@@ -1312,7 +1320,7 @@ public class PdfInkSignView extends AppCompatImageView {
 
             canvas.drawCircle(cx, cy, radius, shapePaint);
 
-            if (!"".equals(safe(field.value))) {
+            if (isRadioSelectedValue(field.value)) {
                 Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
                 fillPaint.setStyle(Paint.Style.FILL);
                 fillPaint.setColor(field.colorArgb);
@@ -1325,22 +1333,21 @@ public class PdfInkSignView extends AppCompatImageView {
 
             String text = safe(field.value);
             if ("".equals(text)) {
-                text = safe(field.ccfId);
+                text = safe(field.name);
             }
             canvas.drawText(text, x, y, formTextPaint);
 
         } else if ("sign".equalsIgnoreCase(type)) {
 
-            // sign field는 PDF field에 설정된 색상으로 테두리를 그림
-            // field.colorArgb는 PdfFormFieldReader에서 읽어온 border 색상 또는 기본 색상이라고 가정
-            if (field.colorArgb != 0) {
-                Paint signBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                signBorderPaint.setStyle(Paint.Style.STROKE);
-                signBorderPaint.setColor(field.colorArgb);
-                signBorderPaint.setStrokeWidth(2f);
+            // sign 커스텀 필드 자체의 기본 테두리 표시
+            // Edge에서 보이는 sign field 테두리를 PdfInkSignView에서도 그려준다.
+            Paint signBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            signBorderPaint.setStyle(Paint.Style.STROKE);
+            signBorderPaint.setColor(Color.BLACK);
+            signBorderPaint.setStrokeWidth(2f);
 
-                canvas.drawRect(screenRect, signBorderPaint);
-            }
+            canvas.drawRect(screenRect, signBorderPaint);
+
 
         } else if ("sign_image".equalsIgnoreCase(type)) {
 
@@ -1351,9 +1358,16 @@ public class PdfInkSignView extends AppCompatImageView {
             canvas.drawText(safe(field.value), x, y, formTextPaint);
         }
 
-        // readonly 필드가 아니면 초록색 테두리를 그림
+        // readonly가 아닌 필드에 초록색 테두리를 그림
+        // readonly가 아닌 필드에 편집모드이면 파란색 테두리
         if (!field.readOnly) {
-            canvas.drawRect(screenRect, debugPaint);
+            if (mode == MODE_EDIT) {
+                canvas.drawRect(screenRect, editingPaint);
+            } else if (mode == MODE_NONE) {
+                // 조회 중... 테두리표시를 하지 않는다.
+            } else {
+                canvas.drawRect(screenRect, editablePaint);
+            }
         }
     }
 
@@ -1557,7 +1571,7 @@ public class PdfInkSignView extends AppCompatImageView {
     private String getSignFieldKey(PdfRenderedFormField field) {
         if (field == null) return "";
 
-        String name = safe(field.ccfId).trim();
+        String name = safe(field.name).trim();
         if (!"".equals(name)) {
             return name;
         }
@@ -1602,7 +1616,7 @@ public class PdfInkSignView extends AppCompatImageView {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.ccfId != null && field.ccfId.equals(fieldName)) {
+            if (field.name != null && field.name.equals(fieldName)) {
                 field.value = newValue;
             }
         }
@@ -1661,9 +1675,9 @@ public class PdfInkSignView extends AppCompatImageView {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.ccfId == null) continue;
+            if (field.name == null) continue;
 
-            if ("drsign".equalsIgnoreCase(field.ccfId)) {
+            if ("drsign".equalsIgnoreCase(field.name)) {
                 String oldValue = safe(field.value);
 
                 if (!drsign.equalsIgnoreCase(oldValue)) {
@@ -1671,7 +1685,7 @@ public class PdfInkSignView extends AppCompatImageView {
                     changed = true;
 
                     // 저장 시 PDF field 값도 변경되도록 보관
-                    mEditedFieldValues.put(field.ccfId, drsign);
+                    mEditedFieldValues.put(field.name, drsign);
 
                     // 기존 자동 의사사인 overlay 제거
                     removeAutoSignOverlayForField(field);
@@ -1726,15 +1740,24 @@ public class PdfInkSignView extends AppCompatImageView {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.ccfId == null) continue;
+            if (field.name == null) continue;
 
-            if (fieldName.equalsIgnoreCase(field.ccfId)) {
+            String logicalName = safe(field.ccfField);
+            if ("".equalsIgnoreCase(logicalName)) {
+                logicalName = safe(field.name);
+            }
+            if (fieldName.equalsIgnoreCase(logicalName)) {
                 exists = true;
 
                 String oldValue = safe(field.value);
                 if (!oldValue.equals(newValue)) {
                     field.value = newValue;
                     changed = true;
+                }
+
+                // 저장은 PDF 실제 fieldName으로 해야 함
+                if (field.name != null && !"".equals(field.name)) {
+                    mEditedFieldValues.put(field.name, newValue);
                 }
             }
         }
@@ -1760,10 +1783,10 @@ public class PdfInkSignView extends AppCompatImageView {
     private void applyEditedValuesToRenderedFields() {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
-            if (field == null || field.ccfId == null) continue;
+            if (field == null || field.name == null) continue;
 
-            if (mEditedFieldValues.containsKey(field.ccfId)) {
-                field.value = mEditedFieldValues.get(field.ccfId);
+            if (mEditedFieldValues.containsKey(field.name)) {
+                field.value = mEditedFieldValues.get(field.name);
             }
         }
     }
@@ -1793,10 +1816,16 @@ public class PdfInkSignView extends AppCompatImageView {
                 String newValue = checked ? "Off" : "Yes";
 
                 field.value = newValue;
-                if (field.ccfId != null) {
-                    mEditedFieldValues.put(field.ccfId, newValue);
+                if (field.name != null) {
+                    mEditedFieldValues.put(field.name, newValue);
                 }
 
+                invalidate();
+                return true;
+            }
+
+            if ("radio".equalsIgnoreCase(type)) {
+                selectRadioField(field);
                 invalidate();
                 return true;
             }
@@ -1841,6 +1870,72 @@ public class PdfInkSignView extends AppCompatImageView {
                 || "y".equalsIgnoreCase(v);
     }
 
+    private void selectRadioField(PdfRenderedFormField selectedField) {
+        if (selectedField == null) return;
+
+        String selectedGroup = getRadioGroupKey(selectedField);
+        if ("".equals(selectedGroup)) return;
+
+        for (int i = 0; i < mRenderedFormFields.size(); i++) {
+            PdfRenderedFormField field = mRenderedFormFields.get(i);
+            if (field == null) continue;
+
+            String type = safe(field.type);
+            if (!"radio".equalsIgnoreCase(type)) continue;
+
+            String fieldGroup = getRadioGroupKey(field);
+
+            if (!selectedGroup.equalsIgnoreCase(fieldGroup)) {
+                continue;
+            }
+
+            String newValue;
+
+            if (field == selectedField) {
+                newValue = "selected";
+            } else {
+                newValue = "";
+            }
+
+            field.value = newValue;
+
+            // 저장은 PDF 실제 fieldName 기준
+            if (field.name != null && !"".equals(field.name)) {
+                mEditedFieldValues.put(field.name, newValue);
+            }
+        }
+    }
+
+    private String getRadioGroupKey(PdfRenderedFormField field) {
+        if (field == null) return "";
+
+        // 1순위: spec.groupName에서 온 값
+        String groupName = safe(field.groupName).trim();
+        if (!"".equals(groupName)) {
+            return groupName;
+        }
+
+        // 2순위: 기존 호환용 ccfField
+        String ccfField = safe(field.ccfField).trim();
+        if (!"".equals(ccfField)) {
+            return ccfField;
+        }
+
+        // 3순위: 최후 fallback
+        return safe(field.name).trim();
+    }
+    private boolean isRadioSelectedValue(String value) {
+        String v = safe(value).trim();
+
+        return "true".equalsIgnoreCase(v)
+                || "yes".equalsIgnoreCase(v)
+                || "on".equalsIgnoreCase(v)
+                || "1".equalsIgnoreCase(v)
+                || "y".equalsIgnoreCase(v)
+                || "selected".equalsIgnoreCase(v)
+                || "checked".equalsIgnoreCase(v);
+    }
+
     public void setSignBitmapToField(PdfRenderedFormField field, Bitmap bitmap) {
         if (field == null || bitmap == null) return;
         if (field.pdfRect == null) return;
@@ -1863,8 +1958,8 @@ public class PdfInkSignView extends AppCompatImageView {
 
         // sign 필드도 값이 있다는 표시를 남김
         field.value = "signed";
-        if (field.ccfId != null && !"".equals(field.ccfId)) {
-            mEditedFieldValues.put(field.ccfId, "signed");
+        if (field.name != null && !"".equals(field.name)) {
+            mEditedFieldValues.put(field.name, "signed");
         }
 
         saveCurrentPageOverlay();
