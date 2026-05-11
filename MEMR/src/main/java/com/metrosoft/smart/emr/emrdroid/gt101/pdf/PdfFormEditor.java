@@ -1,81 +1,76 @@
 package com.metrosoft.smart.emr.emrdroid.gt101.pdf;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
-import com.tom_roush.pdfbox.cos.COSArray;
-import com.tom_roush.pdfbox.cos.COSDictionary;
 import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
-import com.tom_roush.pdfbox.pdmodel.PDPage;
-import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
-import com.tom_roush.pdfbox.pdmodel.PDResources;
-import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
-import com.tom_roush.pdfbox.pdmodel.font.PDType0Font;
-import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
-import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceCharacteristicsDictionary;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationWidget;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceDictionary;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAppearanceStream;
-import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDAcroForm;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDCheckBox;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDRadioButton;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDTextField;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import java.io.File;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
 /**
- * PDF Form 처리 유틸 클래스
+ * PDF Form Overlay 준비 클래스.
  *
- * 기능:
- * 1. PDF에 AcroForm이 없으면 생성
- * 2. 한글 폰트(TTF)를 PDF Form 기본 폰트로 등록
- * 3. 새 텍스트 필드(TextBox) 생성
- * 4. 새 체크박스 필드(CheckBox) 생성
- * 5. 기존/신규 필드에 값 채우기
- * 6. 사인 이미지를 PDF 페이지에 삽입
- * 7. 필요 시 flatten 처리
+ * 중요:
+ * - 이 클래스는 AcroForm field를 만들지 않는다.
+ * - 이 클래스는 PDF 본문에 text / checkbox / radio / label / sign_image / sign 값을 직접 그리지 않는다.
+ * - 모든 field 정보를 PDF Catalog의 MS_OVERLAY_FIELDS metadata에 저장한다.
  *
- * 주의:
- * - assets/fonts/NotoSansKR-Regular.ttf 파일이 존재해야 함
- * - PDF 좌표계는 좌측 하단이 원점임
+ * 처리 흐름:
+ *
+ * 1. ConsentForm
+ *    → PdfFormFieldSpec 목록 생성
+ *    → valuesToFill 생성
+ *    → PdfFormEditor.prepareAndFillPdf() 호출
+ *
+ * 2. PdfFormEditor
+ *    → 원본 PDF를 그대로 복사하되
+ *    → 모든 field 정보를 MS_OVERLAY_FIELDS metadata에 저장
+ *
+ * 3. PdfInkSignView
+ *    → PdfFormFieldReader가 metadata를 읽음
+ *    → 모든 field를 overlay로 화면에 그림
+ *    → 사용자가 text / checkbox / radio / label / sign_image / sign 값을 변경 가능
+ *
+ * 4. PdfInkPdfSaver
+ *    → 저장/임시저장 시 모든 값을 PDF 본문에 굳혀서 그림
+ *    → 단, sign 필드 중 사용자가 서명하지 않은 field만 metadata에 다시 저장
  */
 public class PdfFormEditor {
 
-    private static final String TAG = "PdfFormEditor";
-    private static final COSName MS_FIELD_TYPE = COSName.getPDFName("MS_FIELD_TYPE");
-    private static final COSName MS_CCF_FIELD = COSName.getPDFName("MS_CCF_FIELD");
-    private static final COSName MS_GROUP_NAME = COSName.getPDFName("MS_GROUP_NAME");
-    /** PDF 내부에서 사용할 폰트 리소스 이름 */
-    private static final String FONT_RESOURCE_NAME = "F1";
+    /**
+     * PdfFormFieldReader / PdfInkPdfSaver와 동일하게 사용하는 metadata key.
+     *
+     * 저장 위치:
+     * document.getDocumentCatalog().getCOSObject().setString(
+     *     MS_OVERLAY_FIELDS,
+     *     metadataArray.toString()
+     * );
+     */
+    public static final COSName MS_OVERLAY_FIELDS =
+            COSName.getPDFName("MS_OVERLAY_FIELDS");
 
-    /** assets 기준 폰트 경로 */
-    private static final String FONT_ASSET_PATH = "fonts/NotoSansKR-Regular.ttf";
-
-    /** 기본 폰트 크기 */
     private static final int DEFAULT_FONT_SIZE = 10;
 
-    /** 기본 appearance 문자열 */
-    private static final String DEFAULT_DA = "/" + FONT_RESOURCE_NAME + " " + DEFAULT_FONT_SIZE + " Tf 0 g";
-
     /**
-     * PDF 전체 처리 메인 함수
+     * PDF 준비 메인 함수.
+     *
+     * 기존 AcroForm 방식과 달리:
+     * - AcroForm field를 만들지 않음
+     * - PDF page content에 값을 직접 그리지 않음
+     * - 모든 field 정보를 metadata에만 저장
      *
      * @param context Android Context
      * @param srcPdf 원본 PDF
-     * @param outPdf 결과 PDF
-     * @param fieldsToCreate 새로 생성할 필드 목록
-     * @param valuesToFill 필드명 -> 값
-     * @param signs 사인 이미지 목록
-     * @param flattenAfterSave true이면 저장 전 flatten
-     * @param listener 오류/디버그 메시지 수신
+     * @param outPdf metadata가 추가된 출력 PDF
+     * @param fieldsToCreate CCF 기반 field 목록
+     * @param valuesToFill 초기값 map
+     * @param listener 디버그 콜백
      */
     public static void prepareAndFillPdf(
             Context context,
@@ -83,80 +78,113 @@ public class PdfFormEditor {
             File outPdf,
             List<PdfFormFieldSpec> fieldsToCreate,
             Map<String, String> valuesToFill,
-            List<PdfSignSpec> signs,
-            boolean flattenAfterSave,
             PdfDebugListener listener
     ) throws Exception {
 
         PDFBoxResourceLoader.init(context);
 
         PDDocument document = null;
+
         try {
             document = PDDocument.load(srcPdf);
 
-            PDAcroForm acroForm = getOrCreateAcroForm(context, document);
+            if (listener != null) {
+                listener.onError("metadata-mode-101");
+            }
 
-            if (listener != null) listener.onError(" 101");
+            JSONArray metadataArray = new JSONArray();
 
-            // 1. 새 필드 생성
             if (fieldsToCreate != null) {
                 for (int i = 0; i < fieldsToCreate.size(); i++) {
                     PdfFormFieldSpec spec = fieldsToCreate.get(i);
                     if (spec == null) continue;
 
-                    if (listener != null) listener.onError(" 101" + ", fieldName=" + spec.fieldName + ", typeName=" + spec.typeName);
+                    if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) {
+                        if (listener != null) {
+                            listener.onError("metadata-mode skip invalid page"
+                                    + ", fieldName=" + nvl(spec.fieldName)
+                                    + ", pageNo=" + spec.pageNo);
+                        }
+                        continue;
+                    }
 
-                    String typeName = spec.typeName == null ? "" : spec.typeName.trim();
-                    if ("checkbox".equalsIgnoreCase(typeName)) {
-                        addCheckBoxField(document, acroForm, spec, listener);
-                    }else if ("radio".equalsIgnoreCase(typeName)) {
-                        addRadioField(document, acroForm, spec, listener);
-                    } else if ("sign".equalsIgnoreCase(typeName)) {
-                        // 손글씨 싸인 입력용 위치 필드
-                        addSignField(document, acroForm, spec, listener);
-                    } else if ("sign_image".equalsIgnoreCase(typeName)) {
-                        // 의사 사인 이미지 표시용 필드
-                        addSignImageField(document, acroForm, spec, listener);
-                    } else if ("label".equalsIgnoreCase(typeName)) {
-                        // 수정이 불가능한 텍스트 표시용 필드
-                        addLabelField(document, acroForm, spec, listener);
-                    } else {
-                        addTextField(document, acroForm, spec, listener);
+                    /*
+                     * field 초기값 결정.
+                     *
+                     * 우선순위:
+                     * 1. valuesToFill[fieldName]
+                     * 2. valuesToFill[ccfField]
+                     * 3. spec.value
+                     * 4. spec.defaultValue
+                     * 5. ""
+                     */
+                    String value = getSpecValue(spec);
+
+                    if (valuesToFill != null) {
+                        if (spec.fieldName != null && valuesToFill.containsKey(spec.fieldName)) {
+                            value = valuesToFill.get(spec.fieldName);
+                        } else if (spec.ccfField != null && valuesToFill.containsKey(spec.ccfField)) {
+                            value = valuesToFill.get(spec.ccfField);
+                        }
+                    }
+
+                    String typeName = nvl(spec.typeName).trim();
+                    if ("".equals(typeName)) {
+                        typeName = "label";
+                    }
+
+                    /*
+                     * 모든 field를 metadata에 저장한다.
+                     *
+                     * 이 단계에서는 PDF 본문에 값을 그리지 않는다.
+                     * 그래야 PdfInkSignView에서 overlay로 그릴 때 이중 출력되지 않는다.
+                     */
+                    metadataArray.put(toMetadataJson(spec, typeName, value, true));
+
+                    if (listener != null) {
+                        listener.onError("metadata-mode field"
+                                + ", name=" + nvl(spec.fieldName)
+                                + ", ccfField=" + nvl(spec.ccfField)
+                                + ", type=" + typeName
+                                + ", value=" + nvl(value));
                     }
                 }
             }
 
-            if (listener != null) listener.onError(" 102");
+            /*
+             * metadata 저장.
+             *
+             * 이 PDF를 PdfInkSignView가 열면
+             * PdfFormFieldReader가 MS_OVERLAY_FIELDS를 읽어서
+             * PdfRenderedFormField 목록을 만든다.
+             */
+            document.getDocumentCatalog().getCOSObject().setString(
+                    MS_OVERLAY_FIELDS,
+                    metadataArray.toString()
+            );
 
-            // 2. 기존/신규 필드 값 채우기
-            if (valuesToFill != null) {
-                fillFieldValues(acroForm, valuesToFill, listener);
+            if (listener != null) {
+                listener.onError("metadata-mode-102 count=" + metadataArray.length());
             }
 
-            if (listener != null) listener.onError(" 103");
+            /*
+             * signs, flattenAfterSave는 현재 방식에서 사용하지 않는다.
+             *
+             * signs:
+             * - 기존 이미지 직접 삽입 방식의 호환 파라미터였음
+             * - 지금은 sign/sign_image 모두 metadata로 관리하고
+             *   PdfInkSignView에서 overlay 표시 후 PdfInkPdfSaver에서 최종 저장한다.
+             *
+             * flattenAfterSave:
+             * - AcroForm 전용 개념
+             * - 현재 AcroForm을 만들지 않으므로 사용하지 않는다.
+             */
 
-            // 3. 사인 이미지 삽입
-            if (signs != null) {
-                for (int i = 0; i < signs.size(); i++) {
-                    drawSign(document, signs.get(i));
-                }
-            }
-
-            if (listener != null) listener.onError(" 104");
-
-            // 4. flatten 처리
-            if (flattenAfterSave) {
-                try {
-                    acroForm.flatten();
-                } catch (Exception ex) {
-                    Log.e(TAG, "flatten error: " + ex.getMessage(), ex);
-                }
-            }
-
-            if (listener != null) listener.onError(" 105");
-
-            // 결과 저장
             document.save(outPdf);
+
+            if (listener != null) {
+                listener.onError("metadata-mode-103 saved");
+            }
 
         } finally {
             if (document != null) {
@@ -169,1208 +197,113 @@ public class PdfFormEditor {
     }
 
     /**
-     * AcroForm 가져오기 또는 생성
-     */
-    private static PDAcroForm getOrCreateAcroForm(
-            Context context,
-            PDDocument document
-    ) throws Exception {
-
-        PDAcroForm acroForm = document.getDocumentCatalog().getAcroForm();
-
-        if (acroForm == null) {
-            acroForm = new PDAcroForm(document);
-            document.getDocumentCatalog().setAcroForm(acroForm);
-        }
-
-        PDResources dr = acroForm.getDefaultResources();
-        if (dr == null) {
-            dr = new PDResources();
-            acroForm.setDefaultResources(dr);
-        }
-
-        InputStream fontStream = null;
-        try {
-            fontStream = context.getAssets().open(FONT_ASSET_PATH);
-            PDType0Font font = PDType0Font.load(document, fontStream, true);
-            dr.put(COSName.getPDFName(FONT_RESOURCE_NAME), font);
-        } finally {
-            try {
-                if (fontStream != null) fontStream.close();
-            } catch (Exception ignore) {
-            }
-        }
-
-        acroForm.setDefaultAppearance(DEFAULT_DA);
-
-        try {
-            acroForm.setNeedAppearances(true);
-        } catch (Exception ignore) {
-        }
-
-        return acroForm;
-    }
-
-    /**
-     * 새 텍스트 필드 생성
-     */
-    private static void addTextField(
-            PDDocument document,
-            PDAcroForm acroForm,
-            PdfFormFieldSpec spec,
-            PdfDebugListener listener
-    ) throws Exception {
-
-        if (spec == null) return;
-        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
-
-        PDField existing = acroForm.getField(spec.fieldName);
-        if (existing != null) {
-            return;
-        }
-
-        if (listener != null) listener.onError(" a01");
-
-        PDPage page = document.getPage(spec.pageNo);
-
-        if (listener != null) listener.onError(" a02");
-
-        float pageHeight = page.getMediaBox().getHeight();
-
-        float pdfX = spec.x;
-        float pdfY = pageHeight - spec.y - spec.height;
-
-        if (listener != null) listener.onError(" a03");
-
-        PDTextField textField = new PDTextField(acroForm);
-        textField.setPartialName(spec.fieldName);
-
-        // 앱 전용 필드 타입 저장
-        textField.getCOSObject().setName(MS_FIELD_TYPE, "text");
-        textField.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        String value = getSpecValue(spec);
-
-        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
-        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
-
-        if (listener != null) listener.onError(" a04");
-
-        textField.setDefaultAppearance(fieldDA);
-        textField.setDefaultValue(value);
-
-        if (listener != null) listener.onError(" a05");
-
-        PDAnnotationWidget widget = new PDAnnotationWidget();
-
-        PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(pdfX);
-        rect.setLowerLeftY(pdfY);
-        rect.setUpperRightX(pdfX + spec.width);
-        rect.setUpperRightY(pdfY + spec.height);
-
-        widget.setRectangle(rect);
-        widget.setPage(page);
-        widget.setParent(textField);
-        widget.getCOSObject().setName(MS_FIELD_TYPE, "text");
-        widget.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        try {
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-            widget.setAppearanceCharacteristics(appearance);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(1);
-            widget.setBorderStyle(border);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            widget.getCOSObject().setString(COSName.DA, fieldDA);
-        } catch (Exception ignore) {
-        }
-
-        if (listener != null) listener.onError(" a06");
-
-        // widget 연결: high-level list 조작 대신 KIDS를 raw로 설정
-        COSArray kids = new COSArray();
-        kids.add(widget.getCOSObject());
-        textField.getCOSObject().setItem(COSName.KIDS, kids);
-
-        if (listener != null) listener.onError(" a07");
-
-        // field를 AcroForm에 raw 추가
-        addFieldToAcroFormRaw(acroForm, textField);
-
-        if (listener != null) listener.onError(" a08");
-
-        // page annotation에 widget 등록
-        page.getAnnotations().add(widget);
-
-        if (listener != null) listener.onError(" a09");
-
-        // 마지막에 값 반영
-        textField.setValue(value);
-
-        if (listener != null) listener.onError(" a10");
-    }
-
-    /**
-     * 새 Label 필드 생성
-     *    수정 불가 텍스트 필드임.
-     */
-    private static void addLabelField(
-            PDDocument document,
-            PDAcroForm acroForm,
-            PdfFormFieldSpec spec,
-            PdfDebugListener listener
-    ) throws Exception {
-
-        if (spec == null) return;
-        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
-
-        PDField existing = acroForm.getField(spec.fieldName);
-        if (existing != null) {
-            return;
-        }
-
-        PDPage page = document.getPage(spec.pageNo);
-
-        float pageHeight = page.getMediaBox().getHeight();
-
-        float pdfX = spec.x;
-        float pdfY = pageHeight - spec.y - spec.height;
-
-        PDTextField labelField = new PDTextField(acroForm);
-        labelField.setPartialName(spec.fieldName);
-
-        // 앱 전용 필드 타입 저장
-        labelField.getCOSObject().setName(MS_FIELD_TYPE, "label");
-        labelField.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        labelField.setReadOnly(true);
-
-        String value = getSpecValue(spec);
-
-        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
-        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
-
-        labelField.setDefaultAppearance(fieldDA);
-        labelField.setDefaultValue(value);
-
-        PDAnnotationWidget widget = new PDAnnotationWidget();
-
-        PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(pdfX);
-        rect.setLowerLeftY(pdfY);
-        rect.setUpperRightX(pdfX + spec.width);
-        rect.setUpperRightY(pdfY + spec.height);
-
-        widget.setRectangle(rect);
-        widget.setPage(page);
-        widget.setParent(labelField);
-        widget.getCOSObject().setName(MS_FIELD_TYPE, "label");
-        widget.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        try {
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-            widget.setAppearanceCharacteristics(appearance);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(1);
-            widget.setBorderStyle(border);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            widget.getCOSObject().setString(COSName.DA, fieldDA);
-        } catch (Exception ignore) {
-        }
-
-        // widget 연결: high-level list 조작 대신 KIDS를 raw로 설정
-        COSArray kids = new COSArray();
-        kids.add(widget.getCOSObject());
-        labelField.getCOSObject().setItem(COSName.KIDS, kids);
-
-        // field를 AcroForm에 raw 추가
-        addFieldToAcroFormRaw(acroForm, labelField);
-
-        // page annotation에 widget 등록
-        page.getAnnotations().add(widget);
-
-        // 마지막에 값 반영
-        labelField.setValue(value);
-
-    }
-
-    /**
-     * 새 체크박스 필드 생성
-     * - 일반 PDF 뷰어(Edge, Acrobat 등)에서도 보이도록
-     *   Off / On appearance stream을 직접 만든다.
-     */
-    private static void addCheckBoxField(
-            PDDocument document,
-            PDAcroForm acroForm,
-            PdfFormFieldSpec spec,
-            PdfDebugListener listener
-    ) throws Exception {
-
-        if (spec == null) return;
-        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
-
-        PDField existing = acroForm.getField(spec.fieldName);
-        if (existing != null) {
-            return;
-        }
-
-        PDPage page = document.getPage(spec.pageNo);
-        float pageHeight = page.getMediaBox().getHeight();
-
-        float pdfX = spec.x;
-        float pdfY = pageHeight - spec.y - spec.height;
-
-        // 1. field 생성
-        PDCheckBox checkBox = new PDCheckBox(acroForm);
-        checkBox.setPartialName(spec.fieldName);
-
-        // 앱 전용 필드 타입 저장
-        checkBox.getCOSObject().setName(MS_FIELD_TYPE, "checkbox");
-        checkBox.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        // 2. widget 생성
-        PDAnnotationWidget widget = new PDAnnotationWidget();
-
-        PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(pdfX);
-        rect.setLowerLeftY(pdfY);
-        rect.setUpperRightX(pdfX + spec.width);
-        rect.setUpperRightY(pdfY + spec.height);
-
-        widget.setRectangle(rect);
-        widget.setPage(page);
-        widget.setParent(checkBox);
-        widget.getCOSObject().setName(MS_FIELD_TYPE, "checkbox");
-        widget.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        try {
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-            widget.setAppearanceCharacteristics(appearance);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(0); // checkbox 테두리를 없앤다.
-            widget.setBorderStyle(border);
-        } catch (Exception ignore) {
-        }
-
-        // 3. appearance stream 생성
-        // 일반 뷰어가 checkbox를 표시하려면 /AP(N) 안에 Off / On appearance가 있어야 한다.
-        String onValue = "Yes"; // 기본값
-        PDAppearanceDictionary ap = createCheckBoxAppearance(document, rect, onValue);
-        widget.setAppearance(ap);
-
-        // 4. field <-> widget 연결
-        COSArray kids = new COSArray();
-        kids.add(widget.getCOSObject());
-        checkBox.getCOSObject().setItem(COSName.KIDS, kids);
-
-        addFieldToAcroFormRaw(acroForm, checkBox);
-        page.getAnnotations().add(widget);
-
-        // 5. 실제 On 이름을 다시 확인
-        // getOnValue()는 normal appearance keys를 보고 결정된다.
-        try {
-            String actualOnValue = checkBox.getOnValue();
-            if (actualOnValue != null && actualOnValue.trim().length() > 0) {
-                onValue = actualOnValue;
-            }
-        } catch (Exception ignore) {
-        }
-
-        // 6. 값 반영
-        String value = getSpecValue(spec);
-        setCheckBoxValue(checkBox, widget, value, onValue);
-    }
-
-    /**
-     * 앱 전용 radio 표시 필드 생성
+     * PdfFormFieldSpec 한 건을 metadata JSON으로 변환한다.
      *
-     * 주의:
-     * - 실제 PDRadioButton이 아니다.
-     * - PDF 내부에는 TextField로 만들고, MS_FIELD_TYPE="radio"로 저장한다.
-     * - fieldName은 radio_001, radio_002처럼 모두 다르게 만들 수 있다.
-     * - 화면/저장 시에는 value가 "true", "yes", "on", "1", "y", "selected"이면 선택된 radio로 본다.
-     */
-    private static void addRadioField(
-            PDDocument document,
-            PDAcroForm acroForm,
-            PdfFormFieldSpec spec,
-            PdfDebugListener listener
-    ) throws Exception {
-
-        if (spec == null) return;
-        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
-
-        PDField existing = acroForm.getField(spec.fieldName);
-        if (existing != null) {
-            return;
-        }
-
-        if (listener != null) listener.onError(" radio01");
-
-        PDPage page = document.getPage(spec.pageNo);
-        float pageHeight = page.getMediaBox().getHeight();
-
-        float pdfX = spec.x;
-        float pdfY = pageHeight - spec.y - spec.height;
-
-        PDTextField radioField = new PDTextField(acroForm);
-        radioField.setPartialName(spec.fieldName);
-
-        // 앱 전용 타입 저장
-        radioField.getCOSObject().setName(MS_FIELD_TYPE, "radio");
-        radioField.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-        radioField.getCOSObject().setString(
-                MS_GROUP_NAME,
-                spec.groupName == null ? "" : spec.groupName
-        );
-        String value = getSpecValue(spec);
-        if (value == null) value = "";
-
-        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
-        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
-
-        radioField.setDefaultAppearance(fieldDA);
-        radioField.setDefaultValue(value);
-
-        PDAnnotationWidget widget = new PDAnnotationWidget();
-
-        PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(pdfX);
-        rect.setLowerLeftY(pdfY);
-        rect.setUpperRightX(pdfX + spec.width);
-        rect.setUpperRightY(pdfY + spec.height);
-
-        widget.setRectangle(rect);
-        widget.setPage(page);
-        widget.setParent(radioField);
-
-        widget.getCOSObject().setName(MS_FIELD_TYPE, "radio");
-        widget.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-        widget.getCOSObject().setString(
-                MS_GROUP_NAME,
-                spec.groupName == null ? "" : spec.groupName
-        );
-
-        try {
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-            widget.setAppearanceCharacteristics(appearance);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            // TextField 자체 테두리는 없앤다.
-            // radio 모양은 appearance stream에서 직접 그린다.
-            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(0);
-            widget.setBorderStyle(border);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            widget.getCOSObject().setString(COSName.DA, fieldDA);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            boolean checked = isTrueValue(value);
-            widget.setAppearance(createRadioAppearance(document, rect, checked));
-            widget.setPrinted(true);
-        } catch (Exception ignore) {
-        }
-
-        COSArray kids = new COSArray();
-        kids.add(widget.getCOSObject());
-        radioField.getCOSObject().setItem(COSName.KIDS, kids);
-
-        addFieldToAcroFormRaw(acroForm, radioField);
-        page.getAnnotations().add(widget);
-
-        // 값은 TextField 값으로 저장해도 됨.
-        // PdfInkSignView에서는 type="radio"일 때 글자를 출력하지 않고 원만 그림.
-        radioField.setValue(value);
-
-        if (listener != null) listener.onError(" radio10");
-    }
-
-    /**
-     * 손글씨 싸인 입력용 sign 필드 생성
+     * 저장 좌표:
+     * - x/y/width/height는 PdfFormFieldSpec 기준 좌표 그대로 저장한다.
+     * - 현재 구조에서 spec.x/spec.y는 CCF 기준 좌상단 좌표이다.
      *
-     * 주의:
-     * - PDF 전자서명용 PDSignatureField가 아니다.
-     * - 앱에서 터치 가능한 싸인 입력 영역으로 사용하기 위한 일반 TextField이다.
-     * - 실제 싸인 이미지는 PdfInkPdfSaver에서 bitmap으로 PDF 페이지에 그려 저장한다.
+     * 읽기:
+     * - PdfFormFieldReader가 pageHeight를 이용해 PDF 좌표계 RectF로 변환한다.
      */
-    private static void addSignField(
-            PDDocument document,
-            PDAcroForm acroForm,
+    private static JSONObject toMetadataJson(
             PdfFormFieldSpec spec,
-            PdfDebugListener listener
+            String typeName,
+            String value,
+            boolean editable
     ) throws Exception {
 
-        if (spec == null) return;
-        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
+        JSONObject obj = new JSONObject();
 
-        PDField existing = acroForm.getField(spec.fieldName);
-        if (existing != null) {
-            return;
-        }
+        obj.put("pageNo", spec.pageNo);
 
-        if (listener != null) listener.onError(" sign01");
+        /*
+         * fieldName:
+         * - PDF 내부에서 field를 고유하게 식별하기 위한 이름
+         * - AcroForm field명은 아니지만 기존 코드 호환을 위해 유지한다.
+         */
+        obj.put("fieldName", nvl(spec.fieldName));
 
-        PDPage page = document.getPage(spec.pageNo);
-        float pageHeight = page.getMediaBox().getHeight();
+        /*
+         * ccfField:
+         * - 서버/CCF 기준 논리 필드명
+         * - 값 매핑, mApplyDrnm/mApplyDptnm, injectCcfValue 계열에서 사용
+         */
+        obj.put("ccfField", nvl(spec.ccfField));
 
-        float pdfX = spec.x;
-        float pdfY = pageHeight - spec.y - spec.height;
+        /*
+         * typeName:
+         * - text
+         * - label
+         * - checkbox
+         * - radio
+         * - sign
+         * - sign_image
+         */
+        obj.put("typeName", nvl(typeName));
 
-        PDTextField signField = new PDTextField(acroForm);
-        signField.setPartialName(spec.fieldName);
+        /*
+         * radio 그룹 처리용.
+         */
+        obj.put("groupName", nvl(spec.groupName));
 
-        // 앱 전용 필드 타입 저장
-        signField.getCOSObject().setName(MS_FIELD_TYPE, "sign");
-        signField.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
+        /*
+         * 현재 field 값.
+         * PdfInkSignView에서 overlay로 표시하고,
+         * 사용자가 수정하면 field.value가 변경된다.
+         */
+        obj.put("value", nvl(value));
 
-        String value = getSpecValue(spec);
-        if (value == null) value = "";
+        /*
+         * 좌상단 기준 field 위치.
+         */
+        obj.put("x", spec.x);
+        obj.put("y", spec.y);
+        obj.put("width", spec.width);
+        obj.put("height", spec.height);
 
-        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
-        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
+        obj.put("fontSize", spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize);
 
-        signField.setDefaultAppearance(fieldDA);
-        signField.setDefaultValue(value);
+        /*
+         * 모든 field가 수정 가능해야 한다는 정책이므로 true.
+         *
+         * 단, 나중에 특정 field만 잠그고 싶으면 spec.editable 값을 사용하도록
+         * 이 부분을 바꿀 수 있다.
+         */
+        obj.put("editable", editable);
 
-        PDAnnotationWidget widget = new PDAnnotationWidget();
+        /*
+         * sign field 중 아직 서명이 필요한 field인지 여부.
+         *
+         * 최초 작성 시점에서는 sign field는 모두 pendingSign=true로 둔다.
+         * 저장 시 PdfInkPdfSaver가 서명 완료된 sign은 metadata에서 제거하고,
+         * 미서명 sign만 metadata에 다시 남긴다.
+         */
+        obj.put("pendingSign", "sign".equalsIgnoreCase(nvl(typeName)));
 
-        PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(pdfX);
-        rect.setLowerLeftY(pdfY);
-        rect.setUpperRightX(pdfX + spec.width);
-        rect.setUpperRightY(pdfY + spec.height);
-
-        widget.setRectangle(rect);
-        widget.setPage(page);
-        widget.setParent(signField);
-        widget.getCOSObject().setName(MS_FIELD_TYPE, "sign");
-        widget.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        try {
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-            widget.setAppearanceCharacteristics(appearance);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            // 1) widget 자체의 border style 설정
-            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(1);
-            widget.setBorderStyle(border);
-
-            // 2) widget appearance characteristics에 테두리 색 지정
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-
-            // 검은색 테두리
-            appearance.getCOSObject().setItem(
-                    COSName.BC,
-                    createRgbArray(0f, 0f, 0f)
-            );
-
-            widget.setAppearanceCharacteristics(appearance);
-
-            // 3) 일반 뷰어에서 보이도록 appearance stream 직접 생성
-            widget.setAppearance(createSignAppearance(document, rect));
-
-            // 4) 인쇄 시에도 보이도록
-            widget.setPrinted(true);
-
-        } catch (Exception ignore) {
-        }
-
-        try {
-            widget.getCOSObject().setString(COSName.DA, fieldDA);
-        } catch (Exception ignore) {
-        }
-
-        COSArray kids = new COSArray();
-        kids.add(widget.getCOSObject());
-        signField.getCOSObject().setItem(COSName.KIDS, kids);
-
-        addFieldToAcroFormRaw(acroForm, signField);
-        page.getAnnotations().add(widget);
-
-        // 중요:
-        // sign 필드는 손글씨 이미지 위치용이므로 setValue() 하지 않음.
-        // setValue()를 호출하면 PDFBox가 appearance를 다시 만들면서 테두리가 사라질 수 있음.
-        // signField.setValue(value);
-
-        if (listener != null) listener.onError(" sign10");
+        return obj;
     }
 
     /**
-     * 의사 사인 이미지 표시용 sign_image 필드 생성
+     * spec의 기본값을 안전하게 가져온다.
      *
-     * - PDF 전자서명 필드가 아니다.
-     * - sign_AA10011, logindrsign_AA10011, login_sign_AA10011 같은 값을 가진다.
-     * - PdfInkSignView에서 이 값을 보고 실제 사인 이미지를 그린다.
-     * - 손글씨 입력용 sign과 달리 테두리를 만들지 않는다.
-     */
-    private static void addSignImageField(
-            PDDocument document,
-            PDAcroForm acroForm,
-            PdfFormFieldSpec spec,
-            PdfDebugListener listener
-    ) throws Exception {
-
-        if (spec == null) return;
-        if (spec.fieldName == null || "".equals(spec.fieldName.trim())) return;
-        if (spec.pageNo < 0 || spec.pageNo >= document.getNumberOfPages()) return;
-
-        PDField existing = acroForm.getField(spec.fieldName);
-        if (existing != null) {
-            return;
-        }
-
-        if (listener != null) listener.onError(" sign_image01");
-
-        PDPage page = document.getPage(spec.pageNo);
-        float pageHeight = page.getMediaBox().getHeight();
-
-        float pdfX = spec.x;
-        float pdfY = pageHeight - spec.y - spec.height;
-
-        PDTextField signImageField = new PDTextField(acroForm);
-        signImageField.setPartialName(spec.fieldName);
-
-        // 앱 전용 필드 타입 저장
-        signImageField.getCOSObject().setName(MS_FIELD_TYPE, "sign_image");
-        signImageField.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        // sign_image는 사용자가 직접 수정하는 필드가 아니므로 readonly 권장
-        signImageField.setReadOnly(true);
-
-        String value = getSpecValue(spec);
-        if (value == null) value = "";
-
-        int fontSize = spec.fontSize <= 0 ? DEFAULT_FONT_SIZE : spec.fontSize;
-        String fieldDA = "/" + FONT_RESOURCE_NAME + " " + fontSize + " Tf 0 g";
-
-        signImageField.setDefaultAppearance(fieldDA);
-        signImageField.setDefaultValue(value);
-
-        PDAnnotationWidget widget = new PDAnnotationWidget();
-
-        PDRectangle rect = new PDRectangle();
-        rect.setLowerLeftX(pdfX);
-        rect.setLowerLeftY(pdfY);
-        rect.setUpperRightX(pdfX + spec.width);
-        rect.setUpperRightY(pdfY + spec.height);
-
-        widget.setRectangle(rect);
-        widget.setPage(page);
-        widget.setParent(signImageField);
-        widget.getCOSObject().setName(MS_FIELD_TYPE, "sign_image");
-        widget.getCOSObject().setName(MS_CCF_FIELD, spec.ccfField);
-
-        try {
-            PDAppearanceCharacteristicsDictionary appearance =
-                    new PDAppearanceCharacteristicsDictionary(new COSDictionary());
-            widget.setAppearanceCharacteristics(appearance);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            // sign_image는 테두리 없음
-            PDBorderStyleDictionary border = new PDBorderStyleDictionary();
-            border.setWidth(0);
-            widget.setBorderStyle(border);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            widget.getCOSObject().setString(COSName.DA, fieldDA);
-        } catch (Exception ignore) {
-        }
-
-        try {
-            // 빈 appearance를 넣어 뷰어에서 텍스트 박스처럼 보이지 않게 함
-            widget.setAppearance(createEmptyAppearance(document, rect));
-        } catch (Exception ignore) {
-        }
-
-        COSArray kids = new COSArray();
-        kids.add(widget.getCOSObject());
-        signImageField.getCOSObject().setItem(COSName.KIDS, kids);
-
-        addFieldToAcroFormRaw(acroForm, signImageField);
-        page.getAnnotations().add(widget);
-
-        // sign_image는 화면에는 이미지로 표시할 값만 내부적으로 필요하다.
-        // PDF TextField 값으로 넣으면 Edge에서 sign_AA11011 문자열이 보일 수 있다.
-        // signImageField.setValue(value);
-
-        signImageField.getCOSObject().setString(
-                COSName.getPDFName("MS_SIGN_IMAGE_VALUE"),
-                value == null ? "" : value
-        );
-
-        widget.getCOSObject().setString(
-                COSName.getPDFName("MS_SIGN_IMAGE_VALUE"),
-                value == null ? "" : value
-        );
-
-        if (listener != null) listener.onError(" sign_image10");
-    }
-
-    /**
-     * 기존/신규 필드에 값 채우기
-     */
-    private static void fillFieldValues(
-            PDAcroForm acroForm,
-            Map<String, String> values,
-            PdfDebugListener listener
-    ) throws Exception {
-
-        for (Map.Entry<String, String> entry : values.entrySet()) {
-            String fieldName = entry.getKey();
-            String fieldValue = entry.getValue();
-
-            PDField field = acroForm.getField(fieldName);
-            if (field == null) {
-                continue;
-            }
-
-            try {
-                field.getCOSObject().setString(COSName.DA, DEFAULT_DA);
-            } catch (Exception ignore) {
-            }
-
-            try {
-                String currentDA = field.getCOSObject().getString(COSName.DA);
-                Log.d(TAG, "fillFieldValues field=" + fieldName + ", DA=" + currentDA);
-            } catch (Exception ignore) {
-            }
-
-            if (field instanceof PDCheckBox) {
-                setCheckBoxValue((PDCheckBox) field, fieldValue);
-            } else if (isCustomType(field, "radio")) {
-                setRadioValue(field, fieldValue);
-            } else if (isCustomType(field, "sign_image")) {
-                // sign_image는 TextField지만 값을 화면에 출력하면 안 됨.
-                field.getCOSObject().setString(
-                        COSName.getPDFName("MS_SIGN_IMAGE_VALUE"),
-                        fieldValue == null ? "" : fieldValue
-                );
-                // field.setValue(...) 호출 금지
-            } else {
-                field.setValue(fieldValue == null ? "" : fieldValue);
-            }
-
-            /*
-            if (listener != null) {
-                listener.onError("field filled"
-                        + ", fieldName=" + fieldName
-                        + ", value=" + (fieldValue == null ? "" : fieldValue)
-                        + ", type=" + field.getClass().getSimpleName());
-            }
-            */
-        }
-    }
-
-    /**
-     * 체크박스 값 설정
-     */
-    private static void setCheckBoxValue(PDCheckBox checkBox, String value) throws Exception {
-        if (checkBox == null) return;
-
-        if (isTrueValue(value)) {
-            try {
-                checkBox.check();
-            } catch (Exception e) {
-                try {
-                    checkBox.setValue("Yes");
-                } catch (Exception ignore) {
-                }
-            }
-        } else {
-            try {
-                checkBox.unCheck();
-            } catch (Exception e) {
-                try {
-                    checkBox.setValue("Off");
-                } catch (Exception ignore) {
-                }
-            }
-        }
-    }
-
-    private static void setRadioValue(PDField field, String value) {
-        if (field == null) return;
-
-        String v = value == null ? "" : value;
-
-        try {
-            field.setValue(v);
-        } catch (Exception ignore) {
-        }
-
-        boolean checked = isTrueValue(v)
-                || "selected".equalsIgnoreCase(v)
-                || "checked".equalsIgnoreCase(v);
-
-        try {
-            List<PDAnnotationWidget> widgets =
-                    ((PDTextField) field).getWidgets();
-
-            if (widgets != null) {
-                for (int i = 0; i < widgets.size(); i++) {
-                    PDAnnotationWidget widget = widgets.get(i);
-                    if (widget == null) continue;
-
-                    PDRectangle rect = widget.getRectangle();
-                    if (rect == null) continue;
-
-                    // 여기서는 document가 없으므로 appearance 재생성은 addRadioTextField에서 주로 처리.
-                    // 저장 중 갱신까지 필요하면 setRadioTextValue에 document를 넘기는 구조로 바꾸세요.
-                }
-            }
-        } catch (Exception ignore) {
-        }
-    }
-
-    /**
-     * true 계열 문자열 판별
-     */
-    private static boolean isTrueValue(String value) {
-        if (value == null) return false;
-
-        String v = value.trim();
-        return "true".equalsIgnoreCase(v)
-                || "yes".equalsIgnoreCase(v)
-                || "on".equalsIgnoreCase(v)
-                || "1".equalsIgnoreCase(v)
-                || "y".equalsIgnoreCase(v);
-    }
-
-    /**
-     * spec에서 실제 입력값을 구한다.
-     * defaultValue 우선, 없으면 value 사용
+     * 기존 코드와 호환하기 위해 defaultValue와 value를 모두 고려한다.
      */
     private static String getSpecValue(PdfFormFieldSpec spec) {
         if (spec == null) return "";
-        if (spec.defaultValue != null) return spec.defaultValue;
-        if (spec.value != null) return spec.value;
+
+        if (spec.value != null) {
+            return spec.value;
+        }
+
+        if (spec.defaultValue != null) {
+            return spec.defaultValue;
+        }
+
         return "";
     }
 
-    /**
-     * 사인 이미지를 PDF 페이지에 삽입
-     */
-    private static void drawSign(
-            PDDocument document,
-            PdfSignSpec spec
-    ) throws Exception {
-
-        if (spec == null) return;
-        if (spec.bitmap == null || spec.bitmap.isRecycled()) return;
-        if (spec.pageIndex < 0 || spec.pageIndex >= document.getNumberOfPages()) return;
-
-        PDPage page = document.getPage(spec.pageIndex);
-
-        PDImageXObject imageXObject = LosslessFactory.createFromImage(document, spec.bitmap);
-
-        PDPageContentStream cs = null;
-        try {
-            cs = new PDPageContentStream(
-                    document,
-                    page,
-                    PDPageContentStream.AppendMode.APPEND,
-                    true,
-                    true
-            );
-
-            cs.drawImage(
-                    imageXObject,
-                    spec.x,
-                    spec.y,
-                    spec.width,
-                    spec.height
-            );
-
-        } finally {
-            if (cs != null) {
-                try {
-                    cs.close();
-                } catch (Exception ignore) {
-                }
-            }
-        }
-    }
-
-    private static void addFieldToAcroFormRaw(PDAcroForm acroForm, PDField field) {
-        if (acroForm == null || field == null) return;
-
-        COSArray fieldsArray = (COSArray) acroForm.getCOSObject().getDictionaryObject(COSName.FIELDS);
-        if (fieldsArray == null) {
-            fieldsArray = new COSArray();
-            acroForm.getCOSObject().setItem(COSName.FIELDS, fieldsArray);
-        }
-
-        fieldsArray.add(field.getCOSObject());
-    }
-
-    /**
-     * checkbox의 Off / On appearance를 만든다.
-     */
-    private static PDAppearanceDictionary createCheckBoxAppearance(
-            PDDocument document,
-            PDRectangle rect,
-            String onValue
-    ) throws Exception {
-
-        PDAppearanceStream offStream = createCheckBoxAppearanceStream(document, rect, false);
-        PDAppearanceStream onStream  = createCheckBoxAppearanceStream(document, rect, true);
-
-        COSDictionary normalAppearances = new COSDictionary();
-        normalAppearances.setItem(COSName.Off, offStream);
-        normalAppearances.setItem(COSName.getPDFName(onValue), onStream);
-
-        PDAppearanceDictionary ap = new PDAppearanceDictionary();
-        ap.getCOSObject().setItem(COSName.N, normalAppearances);
-
-        return ap;
-    }
-
-    /**
-     * checkbox 1개의 appearance stream 생성
-     * checked=false : 빈 박스
-     * checked=true  : 체크 표시가 있는 박스
-     */
-    private static PDAppearanceStream createCheckBoxAppearanceStream(
-            PDDocument document,
-            PDRectangle rect,
-            boolean checked
-    ) throws Exception {
-
-        PDAppearanceStream stream = new PDAppearanceStream(document);
-        stream.setResources(new PDResources());
-
-        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
-        stream.setBBox(bbox);
-
-        PDPageContentStream cs = null;
-        try {
-            cs = new PDPageContentStream(document, stream);
-
-            float w = rect.getWidth();
-            float h = rect.getHeight();
-
-            // 배경 흰색
-            cs.setNonStrokingColor(255, 255, 255);
-            cs.addRect(0, 0, w, h);
-            cs.fill();
-
-            // 테두리 검정 ==> 테두리를 없앰.
-            //cs.setStrokingColor(0, 0, 0);
-            //cs.setLineWidth(1f);
-            //cs.addRect(0.5f, 0.5f, w - 1f, h - 1f);
-            //cs.stroke();
-
-            // 체크 표시
-            if (checked) {
-                cs.setStrokingColor(0, 0, 0);
-                cs.setLineWidth(Math.max(1.5f, Math.min(w, h) * 0.12f));
-
-                float startX = w * 0.18f;
-                float startY = h * 0.55f;
-
-                float midX = w * 0.42f;
-                float midY = h * 0.22f;
-
-                float endX = w * 0.82f;
-                float endY = h * 0.78f;
-
-                cs.moveTo(startX, startY);
-                cs.lineTo(midX, midY);
-                cs.lineTo(endX, endY);
-                cs.stroke();
-            }
-
-        } finally {
-            if (cs != null) {
-                try {
-                    cs.close();
-                } catch (Exception ignore) {
-                }
-            }
-        }
-
-        return stream;
-    }
-
-    /**
-     * checkbox 값을 field + widget appearance state에 같이 반영한다.
-     */
-    private static void setCheckBoxValue(
-            PDCheckBox checkBox,
-            PDAnnotationWidget widget,
-            String value,
-            String onValue
-    ) throws Exception {
-
-        if (checkBox == null || widget == null) return;
-
-        String onName = (onValue == null || "".equals(onValue.trim())) ? "Yes" : onValue;
-
-        if (isTrueValue(value)) {
-            try {
-                checkBox.setValue(onName);
-            } catch (Exception e) {
-                try {
-                    checkBox.check();
-                } catch (Exception ignore) {
-                }
-            }
-            try {
-                widget.setAppearanceState(onName);
-            } catch (Exception ignore) {
-            }
-
-        } else {
-            try {
-                checkBox.setValue("Off");
-            } catch (Exception e) {
-                try {
-                    checkBox.unCheck();
-                } catch (Exception ignore) {
-                }
-            }
-            try {
-                widget.setAppearanceState("Off");
-            } catch (Exception ignore) {
-            }
-        }
-    }
-
-    private static PDAppearanceDictionary createRadioAppearance(
-            PDDocument document,
-            PDRectangle rect,
-            boolean checked
-    ) throws Exception {
-
-        PDAppearanceStream normalStream =
-                createRadioAppearanceStream(document, rect, checked);
-
-        PDAppearanceDictionary ap = new PDAppearanceDictionary();
-        ap.setNormalAppearance(normalStream);
-
-        return ap;
-    }
-    private static PDAppearanceStream createRadioAppearanceStream(
-            PDDocument document,
-            PDRectangle rect,
-            boolean checked
-    ) throws Exception {
-
-        PDAppearanceStream stream = new PDAppearanceStream(document);
-        stream.setResources(new PDResources());
-
-        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
-        stream.setBBox(bbox);
-
-        PDPageContentStream cs = null;
-        try {
-            cs = new PDPageContentStream(document, stream);
-
-            float w = rect.getWidth();
-            float h = rect.getHeight();
-
-            float size = Math.min(w, h);
-            float cx = w / 2f;
-            float cy = h / 2f;
-            float r = (size / 2f) - 1f;
-            if (r < 1f) r = size / 2f;
-
-            // 빈 동그라미
-            cs.setStrokingColor(0, 0, 0);
-            cs.setLineWidth(1f);
-            drawCircle(cs, cx, cy, r);
-            cs.stroke();
-
-            // 선택된 경우 속이 찬 동그라미
-            if (checked) {
-                cs.setNonStrokingColor(0, 0, 0);
-                drawCircle(cs, cx, cy, r * 0.55f);
-                cs.fill();
-            }
-
-        } finally {
-            if (cs != null) {
-                try {
-                    cs.close();
-                } catch (Exception ignore) {
-                }
-            }
-        }
-
-        return stream;
-    }
-
-    private static void drawCircle(PDPageContentStream cs, float cx, float cy, float r) throws Exception {
-        float c = 0.552284749831f;
-        float ox = r * c;
-        float oy = r * c;
-
-        cs.moveTo(cx + r, cy);
-        cs.curveTo(cx + r, cy + oy, cx + ox, cy + r, cx, cy + r);
-        cs.curveTo(cx - ox, cy + r, cx - r, cy + oy, cx - r, cy);
-        cs.curveTo(cx - r, cy - oy, cx - ox, cy - r, cx, cy - r);
-        cs.curveTo(cx + ox, cy - r, cx + r, cy - oy, cx + r, cy);
-    }
-
-    /**
-     * sign field의 normal appearance를 만든다.
-     * - 손글씨 싸인 입력 영역 표시용
-     */
-    private static PDAppearanceDictionary createSignAppearance(
-            PDDocument document,
-            PDRectangle rect
-    ) throws Exception {
-
-        PDAppearanceStream normalStream = createSignAppearanceStream(document, rect);
-
-        PDAppearanceDictionary ap = new PDAppearanceDictionary();
-        ap.setNormalAppearance(normalStream);
-
-        return ap;
-    }
-
-    private static PDAppearanceDictionary createEmptyAppearance(
-            PDDocument document,
-            PDRectangle rect
-    ) throws Exception {
-
-        PDAppearanceStream normalStream = createEmptyAppearanceStream(document, rect);
-
-        PDAppearanceDictionary ap = new PDAppearanceDictionary();
-        ap.setNormalAppearance(normalStream);
-
-        return ap;
-    }
-
-    private static PDAppearanceStream createEmptyAppearanceStream(
-            PDDocument document,
-            PDRectangle rect
-    ) throws Exception {
-
-        PDAppearanceStream stream = new PDAppearanceStream(document);
-        stream.setResources(new PDResources());
-
-        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
-        stream.setBBox(bbox);
-
-        PDPageContentStream cs = null;
-        try {
-            cs = new PDPageContentStream(document, stream);
-            // 아무것도 그리지 않음
-        } finally {
-            if (cs != null) {
-                try {
-                    cs.close();
-                } catch (Exception ignore) {
-                }
-            }
-        }
-
-        return stream;
-    }
-
-    /**
-     * sign field 1개의 appearance stream 생성
-     */
-    private static PDAppearanceStream createSignAppearanceStream(
-            PDDocument document,
-            PDRectangle rect
-    ) throws Exception {
-
-        PDAppearanceStream stream = new PDAppearanceStream(document);
-        stream.setResources(new PDResources());
-
-        PDRectangle bbox = new PDRectangle(rect.getWidth(), rect.getHeight());
-        stream.setBBox(bbox);
-
-        PDPageContentStream cs = null;
-        try {
-            cs = new PDPageContentStream(document, stream);
-
-            float w = rect.getWidth();
-            float h = rect.getHeight();
-
-            // 배경색은 칠하지 않음
-
-            // 검은색 테두리만 표시
-            cs.setStrokingColor(0, 0, 0);
-            cs.setLineWidth(1f);
-            cs.addRect(0.5f, 0.5f, w - 1f, h - 1f);
-            cs.stroke();
-
-        } finally {
-            if (cs != null) {
-                try {
-                    cs.close();
-                } catch (Exception ignore) {
-                }
-            }
-        }
-
-        return stream;
-    }
-
-    private static COSArray createRgbArray(float r, float g, float b) {
-        COSArray arr = new COSArray();
-        arr.add(new com.tom_roush.pdfbox.cos.COSFloat(r));
-        arr.add(new com.tom_roush.pdfbox.cos.COSFloat(g));
-        arr.add(new com.tom_roush.pdfbox.cos.COSFloat(b));
-        return arr;
-    }
-
-    private static boolean isCustomType(PDField field, String typeName) {
-        if (field == null || typeName == null) return false;
-
-        try {
-            String type = field.getCOSObject().getNameAsString(MS_FIELD_TYPE);
-            return typeName.equalsIgnoreCase(type);
-        } catch (Exception ignore) {
-        }
-
-        return false;
+    private static String nvl(String s) {
+        return s == null ? "" : s;
     }
 }

@@ -17,6 +17,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.Picture;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
@@ -481,6 +482,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         textPaint.setStyle(Paint.Style.FILL);
 
         for (int i = 0; i < mPageCount; i++) {
+            // ===== 이미지 동의서 ================================================
+            //       이곳에서는 뷰만 만들고 실제 값은. MyView.clear함수를 호출하며 넘긴다.
             MyView v = new MyView(this, penWidth, eraserWidth, penColorValue, penPaint, clearPaint, cursorPaint, textPaint, userId);
             // 2026.02.10 WOOIL - 리스터 추가
             v.setOnCcfValueChangedListener(new FingerPaintView3.OnCcfValueChangedListener() {
@@ -499,6 +502,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             mMyViewList.get(i).setLayoutParams(layoutParams);
             linearLayout.addView(mMyViewList.get(i), linearLayout.getChildCount() - 1);
             mMyViewList.get(i).setVisibility(View.GONE);
+
+            // ===== PDF 동의서 ========================
             // 2026.04.14 WOOIL - PDF 문서를 처리하는 VIEW 추가
             PdfInkSignView pdfView = new PdfInkSignView(this);
             pdfView.setLayoutParams(layoutParams);
@@ -516,8 +521,21 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             });
             pdfView.setOnPdfSignFieldClickListener(new PdfInkSignView.OnPdfSignFieldClickListener() {
                 @Override
-                public void onPdfSignFieldClick(final PdfRenderedFormField field) {
-                    showPdfSignFieldEditDialog(pdfView, field);
+                public void onPdfSignFieldClick(final PdfRenderedFormField field,
+                                                final ArrayList<Path> paths) {
+                    /*
+                     * PdfInkSignView.handleTapField()에서 sign 필드를 터치하면
+                     * 현재 sign field에 이미 입력된 Path 목록을 paths로 넘겨준다.
+                     *
+                     * paths는 PdfInkSignView 내부에 저장된 PDF 좌표계 Path이다.
+                     * PdfSignInputView에 표시하려면 입력창 크기에 맞게 다시 변환해야 한다.
+                     */
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            showPdfSignFieldEditDialog(pdfView, field, paths);
+                        }
+                    });
                 }
             });
             pdfView.setOnPdfFieldValueChangedListener(
@@ -536,7 +554,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             linearLayout.addView(pdfView, linearLayout.getChildCount() - 1);
         }
 
-        // 2026.04.16 WOOIL -
+        // 2026.04.16 WOOIL - 펜,지우개,색등을 설정하는 함수
         applyCurrentToolSettingsToPdfViews();
 
         if (savedInstanceState == null) {
@@ -2888,6 +2906,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         }
 
         try {
+            final String userId = getUserId();
+
             // 기존 이미지 뷰는 숨김
             for (int i = 0; i < mMyViewList.size(); i++) {
                 ((View) mMyViewList.get(i)).setVisibility(View.GONE);
@@ -2903,7 +2923,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
                 if (i < mPdfFilePathList.size()) {
                     File pdfFile = new File(mPdfFilePathList.get(i));
-                    pdfView.openPdf(pdfFile, 0);
+                    pdfView.openPdf(pdfFile, 0, userId);
                 }
             }
 
@@ -3021,24 +3041,29 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
         int pageCnt = mPdfFilePathList.size();
         for (int i = 0; i < pageCnt; i++) {
+            // pdf 문서 경로를 구한다.
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-1)(pdf)");
             String srcPath = mPdfFilePathList.get(i);
             if ("".equals(nvl(srcPath))) continue;
 
+            // pdf 문서를 File 타입으로 읽는다.
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-2)(pdf)");
             File srcPdf = new File(srcPath);
             if (!srcPdf.exists()) continue;
 
+            // pdf 문서에 출력할 자료의 공간 정보(label,text,등등)를 만든다.(ccfValueXml -> PdfFormFieldSpec)
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-3)(pdf)");
             List<PdfFormFieldSpec> fields = buildPdfFormFieldSpecList(i);
 
+            // pdf문서에 출력할 자료의 값을 변환한다.(ccfValueXml -> Map)
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-4)(pdf)");
             Map<String, String> values = buildPdfFieldValues(i);
 
+            // 데이터에이스에서 읽은 값과 사용자가 화면에서 수정한 값을 한 번에 처리하기 위한 변수
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-5)(pdf)");
             Map<String, String> valuesToFill = new HashMap<String, String>();
 
-            // 기존 값
+            // 기존 값(데이터베이스에서 읽은 값)
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-6)(pdf)");
             valuesToFill.putAll(values);
 
@@ -3050,20 +3075,11 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-8)(pdf)");
             if (values == null || values.size() == 0) continue;
 
+            // 값을 반영한 pdf 파일을 만든다.
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-9)(pdf)");
             File outPdf = new File(srcPdf.getParent(), "filled_" + srcPdf.getName());
 
-            // 현재 단계에서는 텍스트 필드만 채우고, flatten은 하지 않는 쪽이 좋습니다.
-            /*
-            PdfFormRuntimeWriter.fillOnly(
-                    this,
-                    srcPdf, // 원본 PDF
-                    outPdf, // 결과 PDF
-                    values, // 필드명과 값
-                    null,   // 사인(signatures)
-                    false   // 필드값 수정 못하게 고정 여부
-            );
-            */
+            // 모든 값을 반영하여 pdf 파일을 저장한후. 실제로 이 파일을 사용한다.
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-10)(pdf)");
             final String msgmsg = (i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-10)(pdf)";
             PdfFormEditor.prepareAndFillPdf(
@@ -3072,8 +3088,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     outPdf, // 결과 PDF
                     fields, // 생성할 필드
                     valuesToFill, // 필드명과 값
-                    null,   // 사인(signatures)
-                    false,   // 필드값 수정 못하게 고정 여부
                     new PdfDebugListener() {
                         @Override
                         public void onError(String msg) {
@@ -3083,6 +3097,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                     }
             );
 
+            // pdf 파일면을 리스트에 담아놓는다.
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-11)(pdf)");
             mPdfFilePathList.set(i, outPdf.getAbsolutePath());
         }
@@ -3211,9 +3226,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private void showPdfTextFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
         if (pdfView == null || field == null) return;
 
-        // readonly면 편집창을 띄우지 않음
-        if (field.readOnly) return;
-
         final EditText editText = new EditText(this);
         editText.setText(field.value == null ? "" : field.value);
         editText.setSelection(editText.getText().length());
@@ -3244,23 +3256,19 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         builder.show();
     }
 
-    private void showPdfSignFieldEditDialog(final PdfInkSignView pdfView, final PdfRenderedFormField field) {
+    private void showPdfSignFieldEditDialog(final PdfInkSignView pdfView,
+                                            final PdfRenderedFormField field,
+                                            final ArrayList<Path> pdfPaths) {
 
+        /*
+         * 사용자가 sign 필드에 서명을 입력하거나,
+         * 이미 입력된 서명을 다시 수정하는 입력창이다.
+         */
         if (pdfView == null || field == null) {
             return;
         }
 
-        if (field.readOnly) {
-            return;
-        }
-
         final PdfSignInputView signView = new PdfSignInputView(ConsentForm.this);
-
-        // 기존 sign 필드에 입력된 사인이 있으면 편집창에 먼저 표시
-        Bitmap oldSignBitmap = pdfView.getSignBitmapForField(field);
-        if (oldSignBitmap != null) {
-            signView.setSignBitmap(oldSignBitmap);
-        }
 
         int height = (int) Utils.getPixelFromDip(ConsentForm.this, 220);
         signView.setLayoutParams(new LinearLayout.LayoutParams(
@@ -3277,21 +3285,11 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         builder.setTitle("서명 입력");
         builder.setView(layout);
 
-        builder.setPositiveButton("확인", new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-
-                Bitmap signBitmap = signView.getSignBitmap();
-
-                if (signBitmap == null) {
-                    Toast.makeText(mActivity, "서명 이미지 생성 실패", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                pdfView.setSignBitmapToField(field, signBitmap);
-            }
-        });
-
+        /*
+         * 기본 setPositiveButton은 클릭하면 무조건 dialog가 닫힌다.
+         * 서명이 없을 때 닫히지 않게 하기 위해 실제 처리는 setOnShowListener에서 한다.
+         */
+        builder.setPositiveButton("확인", null);
         builder.setNegativeButton("취소", null);
         builder.setNeutralButton("지우기", null);
 
@@ -3300,10 +3298,93 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         dialog.setOnShowListener(new DialogInterface.OnShowListener() {
             @Override
             public void onShow(DialogInterface d) {
+
+                /*
+                 * signView는 dialog.show() 이후에 실제 width/height가 정해진다.
+                 * 따라서 기존 Path 복원은 post() 안에서 처리해야 한다.
+                 */
+                signView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (pdfPaths == null || pdfPaths.size() <= 0) {
+                                return;
+                            }
+
+                            /*
+                             * pdfPaths는 PDF 좌표계 Path이다.
+                             * PdfSignInputView는 좌상단 원점, Y 아래 방향 좌표계이므로
+                             * PdfInkSignView에서 제공하는 변환 함수를 사용해
+                             * PDF 좌표계 → 입력창 좌표계로 변환한다.
+                             *
+                             * 이 함수는 PdfInkSignView에 추가되어 있어야 한다.
+                             */
+                            ArrayList<Path> inputPaths =
+                                    pdfView.convertPdfSignPathsToInputPaths(
+                                            pdfPaths,
+                                            field,
+                                            signView.getWidth(),
+                                            signView.getHeight()
+                                    );
+
+                            /*
+                             * 기존 서명이 있으면 PdfSignInputView에 다시 표시한다.
+                             * PdfSignInputView에 setSignPaths(List<Path>) 함수가 있어야 한다.
+                             */
+                            if (inputPaths != null && inputPaths.size() > 0) {
+                                signView.setSignPaths(inputPaths);
+                            }
+
+                        } catch (Exception ex) {
+                            Log.d("EmrDroid", "restore sign paths error=" + ex.getMessage());
+                        }
+                    }
+                });
+
+                /*
+                 * 지우기 버튼:
+                 * 입력창의 현재 서명만 지운다.
+                 * 아직 PdfInkSignView의 sign overlay는 바로 지우지 않는다.
+                 * 사용자가 확인을 눌렀을 때 최종 반영한다.
+                 */
                 dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         signView.clear();
+                    }
+                });
+
+                /*
+                 * 확인 버튼:
+                 * PdfSignInputView의 Path를 PdfInkSignView로 넘겨 sign field에 반영한다.
+                 */
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+
+                        List<Path> signPaths = signView.getSignPaths();
+
+                        // 싸인을 하지 않아도 동작하도록 하자.
+                        //if (signPaths == null || signPaths.size() <= 0) {
+                        //    Toast.makeText(mActivity, "서명을 입력해 주세요.", Toast.LENGTH_SHORT).show();
+                        //    return;
+                        //}
+
+                        /*
+                         * PdfSignInputView의 Path는 입력창 좌표계이다.
+                         * PdfInkSignView.setSignToField()에서
+                         * 입력창 좌표계 → PDF 좌표계로 변환해 저장한다.
+                         */
+                        pdfView.setSignToField(
+                                field,
+                                signPaths,
+                                signView.getWidth(),
+                                signView.getHeight(),
+                                signView.getSignStrokeWidth(),
+                                signView.getSignStrokeColor()
+                        );
+
+                        dialog.dismiss();
                     }
                 });
             }
@@ -3311,6 +3392,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
         dialog.show();
     }
+
 
     private String getAppVersion() {
         try {
