@@ -9,18 +9,19 @@ import android.graphics.Path;
 import android.view.MotionEvent;
 import android.view.View;
 
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PdfSignInputView extends View {
 
     private Paint paint;
-    private Path path;
-    private Bitmap baseBitmap;
+    private Path currentPath;
+    private ArrayList<Path> paths = new ArrayList<Path>();
 
     public PdfSignInputView(Context context) {
         super(context);
 
-        path = new Path();
+        currentPath = null;
 
         paint = new Paint();
         paint.setAntiAlias(true);
@@ -35,44 +36,49 @@ public class PdfSignInputView extends View {
     }
 
     public void clear() {
-        path.reset();
-
-        if (baseBitmap != null && !baseBitmap.isRecycled()) {
-            baseBitmap.recycle();
-        }
-        baseBitmap = null;
+        paths.clear();
+        currentPath = null;
 
         invalidate();
     }
 
-    public Bitmap getSignBitmap() {
-        if (getWidth() <= 0 || getHeight() <= 0) return null;
+    public List<Path> getSignPaths() {
+        ArrayList<Path> copied = new ArrayList<Path>();
 
-        Bitmap bitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-
-        canvas.drawColor(Color.TRANSPARENT);
-
-        if (baseBitmap != null && !baseBitmap.isRecycled()) {
-            canvas.drawBitmap(baseBitmap, null,
-                    new android.graphics.RectF(0, 0, getWidth(), getHeight()), null);
+        for (int i = 0; i < paths.size(); i++) {
+            copied.add(new Path(paths.get(i)));
         }
 
-        canvas.drawPath(path, paint);
+        if (currentPath != null) {
+            copied.add(new Path(currentPath));
+        }
 
-        return bitmap;
+        return copied;
+    }
+
+    public boolean hasVectorSign() {
+        return paths.size() > 0 || currentPath != null;
+    }
+
+    public float getSignStrokeWidth() {
+        return paint.getStrokeWidth();
+    }
+
+    public int getSignStrokeColor() {
+        return paint.getColor();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        if (baseBitmap != null && !baseBitmap.isRecycled()) {
-            canvas.drawBitmap(baseBitmap, null,
-                    new android.graphics.RectF(0, 0, getWidth(), getHeight()), null);
+        for (int i = 0; i < paths.size(); i++) {
+            canvas.drawPath(paths.get(i), paint);
         }
 
-        canvas.drawPath(path, paint);
+        if (currentPath != null) {
+            canvas.drawPath(currentPath, paint);
+        }
     }
 
     @Override
@@ -82,16 +88,24 @@ public class PdfSignInputView extends View {
 
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
-                path.moveTo(x, y);
+                currentPath = new Path();
+                currentPath.moveTo(x, y);
                 invalidate();
                 return true;
 
             case MotionEvent.ACTION_MOVE:
-                path.lineTo(x, y);
+                if (currentPath != null) {
+                    currentPath.lineTo(x, y);
+                }
                 invalidate();
                 return true;
 
             case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                if (currentPath != null) {
+                    paths.add(new Path(currentPath));
+                    currentPath = null;
+                }
                 invalidate();
                 return true;
         }
@@ -99,18 +113,20 @@ public class PdfSignInputView extends View {
         return true;
     }
 
-    public void setSignBitmap(Bitmap bitmap) {
-        if (bitmap == null || bitmap.isRecycled()) return;
+    public void setSignPaths(List<Path> inputPaths) {
+        paths.clear();
+        currentPath = null;
 
-        baseBitmap = Bitmap.createScaledBitmap(
-                bitmap,
-                getWidth() > 0 ? getWidth() : bitmap.getWidth(),
-                getHeight() > 0 ? getHeight() : bitmap.getHeight(),
-                true
-        );
+        if (inputPaths != null) {
+            for (int i = 0; i < inputPaths.size(); i++) {
+                Path p = inputPaths.get(i);
+                if (p == null) continue;
+                paths.add(new Path(p));
+            }
+        }
 
-        path.reset();
         invalidate();
     }
+
 
 }

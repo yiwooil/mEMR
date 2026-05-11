@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
@@ -19,39 +20,19 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 
-import com.metrosoft.smart.emr.emrdroid.gt101.data.CcfValue;
-import com.metrosoft.smart.emr.emrdroid.gt101.view.FingerPaintView3;
-import com.tom_roush.pdfbox.cos.COSName;
-import com.tom_roush.pdfbox.pdmodel.interactive.form.PDField;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-/**
- * PDF 문서를 화면에 표시하고,
- * - PDF 내부 Ink Annotation
- * - PDF 내부 AcroForm Field
- * - 앱에서 직접 그린 펜 Stroke
- * - 앱에서 올린 서명 Bitmap
- * 을 함께 표시하는 View
- *
- * 추가 기능:
- * - FingerPaintView3 방식의 두 손가락 확대/축소
- * - 두 손가락 같은 방향 이동 시 pan
- * - 확대된 상태에서 MODE_NONE일 때 한 손가락 pan
- * - 더블탭으로 원래 배율 복귀
- * - MODE_EDIT일 때 text field / checkbox 편집
- *
- * 주의:
- * - PdfRenderer는 Android 5.0(Lollipop) 이상에서만 동작한다.
- * - AcroForm field는 PdfFormFieldReader.readAllFields()에서 읽어온다.
- * - PdfRenderedFormField.type 값을 이용해 text/checkbox/radio/button/sign 등을 분기 표시한다.
- */
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class PdfInkSignView extends AppCompatImageView {
+    /**
+     * PdfInkPdfSaver에서 PDF 저장 시 사용하는 폰트와 동일하게 맞춘다.
+     * 화면 overlay와 저장 PDF의 글자 모양/높이/baseline 차이를 줄이기 위한 목적이다.
+     */
+    private static final String FONT_ASSET_PATH = "fonts/NotoSansKR-Regular.ttf";
 
     public static final int MODE_NONE = 0;
     public static final int MODE_PEN = 1;
@@ -59,107 +40,113 @@ public class PdfInkSignView extends AppCompatImageView {
     public static final int MODE_MOVE_SIGN = 3;
     public static final int MODE_EDIT = 4;
 
-    // PDF 원본 페이지를 그릴 때 사용하는 Paint
     private final Paint pdfPaint = new Paint(Paint.DITHER_FLAG);
-
-    // 사용자가 화면에 그리는 stroke용 Paint
     private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    // 서명 bitmap의 외곽 프레임용 Paint
     private final Paint signFramePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    // PDF form field text 표시용 Paint
     private final Paint formTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private String mTextFont = ""; // 디버깅용
 
+    private String mUserid;
     private Bitmap pageBitmap;
     private ParcelFileDescriptor pfd;
     private PdfRenderer pdfRenderer;
     private PdfRenderer.Page currentPage;
     private int currentPageIndex = 0;
 
-    // 현재 PDF 페이지의 실제 크기(pdf 좌표계 기준)
     private int currentPdfPageWidth;
     private int currentPdfPageHeight;
 
-    // 현재 페이지에서 앱이 직접 그린 stroke들
     private final List<PdfInkStroke> strokes = new ArrayList<PdfInkStroke>();
     private PdfInkStroke currentStroke;
 
-    // 현재 페이지의 sign overlay들: key = sign field key
+    // 현재 페이지 sign overlay. key = fieldName 또는 rect 기반 key
     private final HashMap<String, PdfSignOverlay> mSignOverlays =
             new HashMap<String, PdfSignOverlay>();
 
-    // 페이지별 sign overlay들
+    // 전체 페이지 sign overlay
     private final HashMap<Integer, HashMap<String, PdfSignOverlay>> mPageSigns =
             new HashMap<Integer, HashMap<String, PdfSignOverlay>>();
 
-    // 페이지별 stroke 저장
+    /**
+     * 현재 페이지 sign_image overlay.
+     *
+     * sign_image는 사용자가 직접 그린 sign이 아니므로
+     * mSignOverlays에 넣으면 안 된다.
+     *
+     * key = fieldName 또는 rect 기반 key
+     */
+    private final HashMap<String, PdfSignImageOverlay> mSignImageOverlays =
+            new HashMap<String, PdfSignImageOverlay>();
+
+    /**
+     * 전체 페이지 sign_image overlay.
+     *
+     * 페이지 이동 시 sign_image bitmap cache를 유지하려는 용도이다.
+     * 단, 저장은 PdfRenderedFormField.value 기준으로 처리하므로
+     * 이 map은 화면 표시/cache 용도로만 생각하는 것이 안전하다.
+     */
+    private final HashMap<Integer, HashMap<String, PdfSignImageOverlay>> mPageSignImages =
+            new HashMap<Integer, HashMap<String, PdfSignImageOverlay>>();
+
     private final HashMap<Integer, ArrayList<PdfInkStroke>> mPageStrokes =
             new HashMap<Integer, ArrayList<PdfInkStroke>>();
 
-    // PDF 내부에 원래 저장되어 있던 Ink Annotation
     private final List<PdfRenderedInkAnnotation> mRenderedAnnotations =
             new ArrayList<PdfRenderedInkAnnotation>();
 
-    private File mCurrentPdfFile;
-
-    // PDF 내부 AcroForm field 표시용
     private final List<PdfRenderedFormField> mRenderedFormFields =
             new ArrayList<PdfRenderedFormField>();
 
-    // 디버깅용 문자열
     private final List<String> mDebugTextList = new ArrayList<String>();
+
+    private File mCurrentPdfFile;
 
     private int mode = MODE_NONE;
     private int penColor = Color.RED;
     private float penWidthPx = 4f;
     private float eraserHitPx = 40f;
 
-    private float lastTouchX;
-    private float lastTouchY;
-
-    // 더블탭 감지용
     private GestureDetector mGestureDetector;
 
-    // 현재 배율
     private float mScaleFactor = 1.0f;
-
-    // 최소/최대 배율
     private float mMinScaleFactor = 1.0f;
     private float mMaxScaleFactor = 2.0f;
 
-    // 현재 화면 이동값
     private float mTranslateX = 0f;
     private float mTranslateY = 0f;
 
-    // 한 손가락 pan 시작 좌표
     private float mLastPanX = 0f;
     private float mLastPanY = 0f;
-
-    // 두 손가락 pan 중심점
     private float mLastMultiTouchCenterX = 0f;
     private float mLastMultiTouchCenterY = 0f;
-
-    // 확대/축소용 이전 두 손가락 거리
     private float mPrevDistance = 0f;
 
-    // 상태 플래그
     private boolean mIsScaling = false;
     private boolean mIsPanning = false;
     private boolean mIsTwoFingerPanning = false;
 
-    // 드래그 시작 임계값
     private int mTouchSlop = 0;
 
-    // 사용자가 수정한 PDF form 값 보관
+    private float mDownX = 0f;
+    private float mDownY = 0f;
+    private boolean mSingleTapCandidate = false;
+
+    // 사용자가 수정한 값. 저장은 실제 PDF fieldName 기준으로 한다.
     private final HashMap<String, String> mEditedFieldValues =
             new HashMap<String, String>();
 
-    // text field 클릭 시 Activity 쪽으로 전달하기 위한 리스너
+    public interface OnPdfFieldEditListener {
+        void onPdfTextFieldClick(PdfRenderedFormField field);
+    }
+
     private OnPdfFieldEditListener mOnPdfFieldEditListener;
 
+    public void setOnPdfFieldEditListener(OnPdfFieldEditListener listener) {
+        this.mOnPdfFieldEditListener = listener;
+    }
+
     public interface OnPdfSignFieldClickListener {
-        void onPdfSignFieldClick(PdfRenderedFormField field);
+        void onPdfSignFieldClick(PdfRenderedFormField field, ArrayList<Path> paths);
     }
 
     private OnPdfSignFieldClickListener mOnPdfSignFieldClickListener;
@@ -168,7 +155,6 @@ public class PdfInkSignView extends AppCompatImageView {
         this.mOnPdfSignFieldClickListener = listener;
     }
 
-    // CcfValue 통지용 (PDF용)
     public interface OnPdfFieldValueChangedListener {
         void onPdfFieldValueChanged(int index, PdfRenderedFormField field);
     }
@@ -179,19 +165,11 @@ public class PdfInkSignView extends AppCompatImageView {
         this.mOnPdfFieldValueChangedListener = listener;
     }
 
-    // 탭 판정용
-    private float mDownX = 0f;
-    private float mDownY = 0f;
-    private boolean mSingleTapCandidate = false;
-
     public PdfInkSignView(Context context) {
         super(context);
         init();
     }
 
-    /**
-     * 초기 Paint 및 View 속성 설정
-     */
     private void init() {
         setFocusable(true);
         setClickable(true);
@@ -207,7 +185,23 @@ public class PdfInkSignView extends AppCompatImageView {
         formTextPaint.setColor(Color.BLACK);
         formTextPaint.setStyle(Paint.Style.FILL);
         formTextPaint.setTextAlign(Paint.Align.LEFT);
-        formTextPaint.setTypeface(Typeface.DEFAULT);
+
+        /*
+         * PDF 저장 시 PdfInkPdfSaver가 사용하는 폰트와 동일한 폰트를 사용한다.
+         * 그래야 저장 전 화면 overlay와 저장 후 PDF의 글자 폭/높이/baseline 차이가 줄어든다.
+         */
+        try {
+            Typeface tf = Typeface.createFromAsset(getContext().getAssets(), FONT_ASSET_PATH);
+            formTextPaint.setTypeface(tf);
+            mTextFont = "custom font";
+        } catch (Exception ex) {
+            /*
+             * 폰트 파일이 없거나 로딩 실패 시 기존 기본 폰트 사용.
+             * 단, 이 경우 저장 전/후 모양 차이가 다시 발생할 수 있다.
+             */
+            formTextPaint.setTypeface(Typeface.DEFAULT);
+            mTextFont = "default font";
+        }
 
         mTouchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
 
@@ -246,13 +240,8 @@ public class PdfInkSignView extends AppCompatImageView {
         return currentPageIndex;
     }
 
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     public int getPdfPageCount() {
         return pdfRenderer != null ? pdfRenderer.getPageCount() : 0;
-    }
-
-    public Bitmap getPageBitmap() {
-        return pageBitmap;
     }
 
     public int getCurrentPdfPageWidth() {
@@ -261,6 +250,10 @@ public class PdfInkSignView extends AppCompatImageView {
 
     public int getCurrentPdfPageHeight() {
         return currentPdfPageHeight;
+    }
+
+    public Bitmap getPageBitmap() {
+        return pageBitmap;
     }
 
     public List<PdfInkStroke> getCurrentPageStrokes() {
@@ -272,33 +265,30 @@ public class PdfInkSignView extends AppCompatImageView {
         return mPageStrokes;
     }
 
+    public HashMap<Integer, HashMap<String, PdfSignOverlay>> getAllPageSignOverlays() {
+        saveCurrentPageOverlay();
+        return mPageSigns;
+    }
+
     public HashMap<String, PdfSignOverlay> getCurrentPageSignOverlays() {
         saveCurrentPageOverlay();
 
-        HashMap<String, PdfSignOverlay> result = new HashMap<String, PdfSignOverlay>();
+        HashMap<String, PdfSignOverlay> result =
+                new HashMap<String, PdfSignOverlay>();
 
         for (String key : mSignOverlays.keySet()) {
             PdfSignOverlay overlay = mSignOverlays.get(key);
             if (overlay == null || !overlay.visible) continue;
-
             result.put(key, overlay.copyShallow());
         }
 
         return result;
     }
 
-    public HashMap<Integer, HashMap<String, PdfSignOverlay>> getAllPageSignOverlays() {
-        saveCurrentPageOverlay();
-        return mPageSigns;
-    }
-
     public float getScaleFactor() {
         return mScaleFactor;
     }
 
-    /**
-     * 확대/축소/이동 상태를 초기화한다.
-     */
     public void resetZoom() {
         mScaleFactor = 1.0f;
         mTranslateX = 0f;
@@ -317,16 +307,15 @@ public class PdfInkSignView extends AppCompatImageView {
         invalidate();
     }
 
-    /**
-     * 전체 overlay를 모두 삭제한다.
-     */
     public void clearAllOverlays() {
         strokes.clear();
         currentStroke = null;
         mSignOverlays.clear();
+        mSignImageOverlays.clear();
 
         mPageStrokes.clear();
         mPageSigns.clear();
+        mPageSignImages.clear();
 
         mRenderedAnnotations.clear();
         mRenderedFormFields.clear();
@@ -336,22 +325,19 @@ public class PdfInkSignView extends AppCompatImageView {
         invalidate();
     }
 
-    /**
-     * 현재 페이지 overlay만 삭제한다.
-     */
     public void clearCurrentPageOverlay() {
         strokes.clear();
         currentStroke = null;
         mSignOverlays.clear();
+        mSignImageOverlays.clear();
 
         saveCurrentPageOverlay();
         invalidate();
     }
 
-    /**
-     * PDF를 열고 특정 페이지를 표시한다.
-     */
-    public void openPdf(File pdfFile, int pageIndex) throws IOException {
+    public void openPdf(File pdfFile, int pageIndex, String userid) throws IOException {
+        mUserid = userid;
+
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             throw new IOException("PdfRenderer는 Android 5.0 이상에서만 지원됩니다.");
         }
@@ -365,11 +351,10 @@ public class PdfInkSignView extends AppCompatImageView {
             throw new IOException("PDF 페이지가 없습니다.");
         }
 
-        mDebugTextList.clear();
-        mDebugTextList.add("openPdf 시작");
-
         if (pageIndex < 0) pageIndex = 0;
-        if (pageIndex >= pdfRenderer.getPageCount()) pageIndex = pdfRenderer.getPageCount() - 1;
+        if (pageIndex >= pdfRenderer.getPageCount()) {
+            pageIndex = pdfRenderer.getPageCount() - 1;
+        }
 
         currentPageIndex = pageIndex;
 
@@ -377,52 +362,23 @@ public class PdfInkSignView extends AppCompatImageView {
         openRendererPage(currentPageIndex);
         restorePageOverlay(currentPageIndex);
 
-        mDebugTextList.add("annotation 읽기 in openPdf");
-        try {
-            List<PdfRenderedInkAnnotation> annots =
-                    PdfInkAnnotationReader.readInkAnnotations(getContext(), pdfFile, currentPageIndex);
-            setRenderedAnnotations(annots);
-        } catch (Exception e) {
-            mRenderedAnnotations.clear();
-            mDebugTextList.add("annotation 읽기 오류: " + e.getMessage());
-        }
-
-        mDebugTextList.add("form-field 읽기 in openPdf");
-        try {
-            List<PdfRenderedFormField> fields =
-                    PdfFormFieldReader.readAllFields(getContext(), pdfFile, currentPageIndex, mDebugTextList);
-
-            for (PdfRenderedFormField f : fields) {
-                String type = "";
-                try {
-                    type = f.type;
-                } catch (Throwable ignore) {
-                }
-                mDebugTextList.add("form-field = " + safe(f.name) + " / " + safe(type) + " / " + safe(f.value));
-            }
-
-            setRenderedFormFields(fields);
-        } catch (Exception e) {
-            mRenderedFormFields.clear();
-            mDebugTextList.add("form-field 읽기 오류: " + e.getMessage());
-        }
-
         mCurrentPdfFile = pdfFile;
+
+        readCurrentPageAnnotationsAndFields();
 
         requestLayout();
         invalidate();
     }
 
-    /**
-     * 현재 열려 있는 PDF의 다른 페이지를 표시한다.
-     */
     public void showPage(int pageIndex) throws IOException {
         if (pdfRenderer == null) return;
 
         saveCurrentPageOverlay();
 
         if (pageIndex < 0) pageIndex = 0;
-        if (pageIndex >= pdfRenderer.getPageCount()) pageIndex = pdfRenderer.getPageCount() - 1;
+        if (pageIndex >= pdfRenderer.getPageCount()) {
+            pageIndex = pdfRenderer.getPageCount() - 1;
+        }
 
         currentPageIndex = pageIndex;
 
@@ -430,27 +386,7 @@ public class PdfInkSignView extends AppCompatImageView {
         openRendererPage(currentPageIndex);
         restorePageOverlay(currentPageIndex);
 
-        try {
-            if (mCurrentPdfFile != null) {
-                List<PdfRenderedInkAnnotation> annots =
-                        PdfInkAnnotationReader.readInkAnnotations(getContext(), mCurrentPdfFile, currentPageIndex);
-                setRenderedAnnotations(annots);
-            }
-        } catch (Exception e) {
-            mRenderedAnnotations.clear();
-            mDebugTextList.add("annotation 읽기 오류(showPage): " + e.getMessage());
-        }
-
-        try {
-            if (mCurrentPdfFile != null) {
-                List<PdfRenderedFormField> fields =
-                        PdfFormFieldReader.readAllFields(getContext(), mCurrentPdfFile, currentPageIndex, mDebugTextList);
-                setRenderedFormFields(fields);
-            }
-        } catch (Exception e) {
-            mRenderedFormFields.clear();
-            mDebugTextList.add("form-field 읽기 오류(showPage): " + e.getMessage());
-        }
+        readCurrentPageAnnotationsAndFields();
 
         requestLayout();
         invalidate();
@@ -470,9 +406,43 @@ public class PdfInkSignView extends AppCompatImageView {
         return true;
     }
 
-    /**
-     * PdfRenderer로 특정 페이지를 bitmap으로 렌더링한다.
-     */
+    private void readCurrentPageAnnotationsAndFields() {
+        mDebugTextList.clear();
+
+        try {
+            if (mCurrentPdfFile != null) {
+                List<PdfRenderedInkAnnotation> annots =
+                        PdfInkAnnotationReader.readInkAnnotations(
+                                getContext(),
+                                mCurrentPdfFile,
+                                currentPageIndex
+                        );
+                setRenderedAnnotations(annots);
+            }
+        } catch (Exception e) {
+            mRenderedAnnotations.clear();
+            mDebugTextList.add("annotation 읽기 오류: " + e.getMessage());
+        }
+
+        try {
+            if (mCurrentPdfFile != null) {
+                List<PdfRenderedFormField> fields =
+                        PdfFormFieldReader.readAllFields(
+                                getContext(),
+                                mCurrentPdfFile,
+                                currentPageIndex,
+                                mDebugTextList
+                        );
+                setRenderedFormFields(fields);
+            }
+        } catch (Exception e) {
+            mRenderedFormFields.clear();
+            mDebugTextList.add("form-field 읽기 오류: " + e.getMessage());
+        }
+
+        mDebugTextList.add(mTextFont);
+    }
+
     private void openRendererPage(int pageIndex) throws IOException {
         if (currentPage != null) {
             currentPage.close();
@@ -497,16 +467,19 @@ public class PdfInkSignView extends AppCompatImageView {
         currentPage.render(pageBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
     }
 
-    /**
-     * 현재 페이지의 overlay(stroke / sign)를 페이지별 저장소에 저장한다.
-     */
     private void saveCurrentPageOverlay() {
         ArrayList<PdfInkStroke> copiedStrokes = new ArrayList<PdfInkStroke>();
+
         for (int i = 0; i < strokes.size(); i++) {
             copiedStrokes.add(strokes.get(i).copy());
         }
+
         mPageStrokes.put(currentPageIndex, copiedStrokes);
 
+        /*
+         * sign overlay 저장.
+         * PdfSignOverlay는 사용자가 직접 입력한 sign 전용이다.
+         */
         HashMap<String, PdfSignOverlay> copiedSigns =
                 new HashMap<String, PdfSignOverlay>();
 
@@ -522,11 +495,29 @@ public class PdfInkSignView extends AppCompatImageView {
         } else {
             mPageSigns.remove(currentPageIndex);
         }
+
+        /*
+         * sign_image overlay 저장.
+         * PdfSignImageOverlay는 sign_image 전용이다.
+         */
+        HashMap<String, PdfSignImageOverlay> copiedSignImages =
+                new HashMap<String, PdfSignImageOverlay>();
+
+        for (String key : mSignImageOverlays.keySet()) {
+            PdfSignImageOverlay overlay = mSignImageOverlays.get(key);
+            if (overlay == null || !overlay.visible) continue;
+
+            copiedSignImages.put(key, overlay.copyShallow());
+        }
+
+        if (copiedSignImages.size() > 0) {
+            mPageSignImages.put(currentPageIndex, copiedSignImages);
+        } else {
+            mPageSignImages.remove(currentPageIndex);
+        }
     }
 
-    /**
-     * 저장되어 있는 overlay를 현재 페이지 상태로 복원한다.
-     */
+
     private void restorePageOverlay(int pageIndex) {
         strokes.clear();
         currentStroke = null;
@@ -538,6 +529,9 @@ public class PdfInkSignView extends AppCompatImageView {
             }
         }
 
+        /*
+         * sign 복원.
+         */
         mSignOverlays.clear();
 
         HashMap<String, PdfSignOverlay> savedSigns = mPageSigns.get(pageIndex);
@@ -549,11 +543,24 @@ public class PdfInkSignView extends AppCompatImageView {
                 mSignOverlays.put(key, overlay.copyShallow());
             }
         }
+
+        /*
+         * sign_image 복원.
+         */
+        mSignImageOverlays.clear();
+
+        HashMap<String, PdfSignImageOverlay> savedSignImages = mPageSignImages.get(pageIndex);
+        if (savedSignImages != null) {
+            for (String key : savedSignImages.keySet()) {
+                PdfSignImageOverlay overlay = savedSignImages.get(key);
+                if (overlay == null) continue;
+
+                mSignImageOverlays.put(key, overlay.copyShallow());
+            }
+        }
     }
 
-    /**
-     * 현재 페이지에서 마지막 stroke 1개 삭제
-     */
+
     public void deleteCurrentPageLastStroke() {
         if (!strokes.isEmpty()) {
             strokes.remove(strokes.size() - 1);
@@ -587,28 +594,14 @@ public class PdfInkSignView extends AppCompatImageView {
             drawStroke(canvas, currentStroke);
         }
 
-        drawDebugText(canvas);
-
+        // sign overlay는 field 위에 표시한다.
         for (String key : mSignOverlays.keySet()) {
-            PdfSignOverlay overlay = mSignOverlays.get(key);
-            if (overlay == null) continue;
-            if (!overlay.visible) continue;
-            if (overlay.bitmap == null || overlay.bitmap.isRecycled()) continue;
-            if (overlay.pdfRect == null) continue;
-
-            RectF screenRect = pdfRectToScreenRect(overlay.pdfRect);
-            canvas.drawBitmap(overlay.bitmap, null, screenRect, null);
-
-            // 손으로 입력한 싸인만 외곽 박스 표시
-            if (!overlay.autoImageSign) {
-                //canvas.drawRect(screenRect, signFramePaint);
-            }
+            drawSignOverlay(canvas, mSignOverlays.get(key));
         }
+
+        drawDebugText(canvas);
     }
 
-    /**
-     * 사용자가 그린 stroke 1개를 화면에 그린다.
-     */
     private void drawStroke(Canvas canvas, PdfInkStroke stroke) {
         if (stroke == null || !stroke.isValid()) return;
 
@@ -629,9 +622,58 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     /**
-     * PDF 페이지가 View 안에서 실제로 그려지는 사각형 영역을 계산한다.
-     * 기본 맞춤 크기에 확대/축소 및 이동을 반영한다.
+     * sign overlay를 화면에 표시한다.
      */
+    private void drawSignOverlay(Canvas canvas, PdfSignOverlay overlay) {
+        if (canvas == null || overlay == null) return;
+        if (!overlay.visible) return;
+        if (overlay.pdfRect == null) return;
+
+        RectF screenRect = pdfRectToScreenRect(overlay.pdfRect);
+
+        if (overlay.paths == null || overlay.paths.size() <= 0) {
+            return;
+        }
+
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setStyle(Paint.Style.STROKE);
+        p.setColor(overlay.strokeColor);
+        p.setStrokeWidth(pdfWidthToScreenWidth(overlay.strokeWidth));
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeJoin(Paint.Join.ROUND);
+
+        for (int i = 0; i < overlay.paths.size(); i++) {
+            Path src = overlay.paths.get(i);
+            if (src == null) continue;
+
+            Path dst = new Path(src);
+            transformPathPdfToScreen(dst);
+            canvas.drawPath(dst, p);
+        }
+    }
+
+    /**
+     * PDF 좌표계 Path를 화면 좌표계 Path로 변환한다.
+     */
+    private void transformPathPdfToScreen(Path path) {
+        if (path == null) return;
+
+        RectF pageRect = getPageDrawRect();
+
+        if (currentPdfPageWidth <= 0 || currentPdfPageHeight <= 0) return;
+
+        float scaleX = pageRect.width() / currentPdfPageWidth;
+        float scaleY = pageRect.height() / currentPdfPageHeight;
+
+        Matrix matrix = new Matrix();
+
+        // PDF 좌표계는 좌하단 원점이고, Android 화면은 좌상단 원점이다.
+        matrix.postScale(scaleX, -scaleY);
+        matrix.postTranslate(pageRect.left, pageRect.top + pageRect.height());
+
+        path.transform(matrix);
+    }
+
     public RectF getPageDrawRect() {
         if (pageBitmap == null) {
             return new RectF(0, 0, getWidth(), getHeight());
@@ -654,9 +696,6 @@ public class PdfInkSignView extends AppCompatImageView {
         return new RectF(left, top, left + drawW, top + drawH);
     }
 
-    /**
-     * 확대 상태에서 화면 이동값이 너무 벗어나지 않도록 제한한다.
-     */
     private void clampTranslation() {
         if (pageBitmap == null) return;
 
@@ -699,11 +738,8 @@ public class PdfInkSignView extends AppCompatImageView {
         if (mTranslateY > maxY) mTranslateY = maxY;
     }
 
-    /**
-     * 디버깅 문자열을 화면 좌측 상단에 그린다.
-     */
     private void drawDebugText(Canvas canvas) {
-        if (1 == 1) return;
+        if (!"mmsdev".equalsIgnoreCase(mUserid)) return;
 
         formTextPaint.setColor(Color.RED);
         formTextPaint.setTextSize(28f);
@@ -715,17 +751,12 @@ public class PdfInkSignView extends AppCompatImageView {
         float lineHeight = 35f;
 
         for (int i = 0; i < mDebugTextList.size(); i++) {
-            String text = mDebugTextList.get(i);
-            canvas.drawText(text, x, y, formTextPaint);
+            canvas.drawText(mDebugTextList.get(i), x, y, formTextPaint);
             y += lineHeight;
-
             if (y > getHeight() - 40) break;
         }
     }
 
-    /**
-     * 화면 좌표를 PDF 좌표로 변환한다.
-     */
     public PointF screenToPdf(float sx, float sy) {
         RectF pageRect = getPageDrawRect();
         if (pageBitmap == null) return new PointF(0, 0);
@@ -744,23 +775,74 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     /**
-     * PDF 좌표를 화면 좌표로 변환한다.
+     * PDF 좌표를 현재 화면(View) 좌표로 변환한다.
+     *
+     * PDF 좌표계:
+     * - 원점이 페이지의 좌하단이다.
+     * - X는 오른쪽으로 증가한다.
+     * - Y는 위쪽으로 증가한다.
+     *
+     * Android 화면 좌표계:
+     * - 원점이 View의 좌상단이다.
+     * - X는 오른쪽으로 증가한다.
+     * - Y는 아래쪽으로 증가한다.
+     *
+     * 따라서 Y 좌표는 변환할 때 위/아래 방향을 뒤집어야 한다.
      */
     public PointF pdfToScreen(float pdfX, float pdfY) {
+        /*
+         * 현재 PDF 페이지가 View 안에서 실제로 그려지는 사각형 영역이다.
+         *
+         * 확대/축소, 이동, 가운데 정렬이 모두 반영된 화면 좌표 영역이다.
+         */
         RectF pageRect = getPageDrawRect();
 
+        /*
+         * PDF 페이지 안에서 X 위치를 0.0 ~ 1.0 비율로 변환한다.
+         *
+         * 예:
+         * - pdfX == 0                  → 페이지의 가장 왼쪽
+         * - pdfX == currentPdfPageWidth → 페이지의 가장 오른쪽
+         */
         float normalizedX = pdfX / currentPdfPageWidth;
+
+        /*
+         * PDF의 Y 좌표는 아래에서 위로 증가한다.
+         * Android 화면의 Y 좌표는 위에서 아래로 증가한다.
+         *
+         * 그래서 PDF의 pdfY를 화면 기준 "위에서부터의 거리"로 바꾼다.
+         *
+         * 예:
+         * - pdfY == currentPdfPageHeight → PDF 페이지 맨 위
+         *   → normalizedYFromTop == 0
+         *
+         * - pdfY == 0 → PDF 페이지 맨 아래
+         *   → normalizedYFromTop == 1
+         */
         float normalizedYFromTop = (currentPdfPageHeight - pdfY) / (float) currentPdfPageHeight;
 
+        /*
+         * X 비율을 실제 화면 좌표로 변환한다.
+         *
+         * pageRect.left는 화면에서 PDF 페이지가 시작되는 X 좌표이고,
+         * pageRect.width()는 현재 확대/축소가 반영된 PDF 페이지의 화면 폭이다.
+         */
         float sx = pageRect.left + normalizedX * pageRect.width();
+
+        /*
+         * Y 비율을 실제 화면 좌표로 변환한다.
+         *
+         * pageRect.top은 화면에서 PDF 페이지가 시작되는 Y 좌표이고,
+         * pageRect.height()는 현재 확대/축소가 반영된 PDF 페이지의 화면 높이다.
+         */
         float sy = pageRect.top + normalizedYFromTop * pageRect.height();
 
+        /*
+         * 변환된 Android 화면 좌표를 반환한다.
+         */
         return new PointF(sx, sy);
     }
 
-    /**
-     * 두 손가락 중심점을 구한다.
-     */
     private PointF getMultiTouchCenter(MotionEvent event) {
         if (event == null || event.getPointerCount() < 2) {
             return new PointF(0f, 0f);
@@ -774,25 +856,16 @@ public class PdfInkSignView extends AppCompatImageView {
         return new PointF((x0 + x1) / 2f, (y0 + y1) / 2f);
     }
 
-    /**
-     * 두 점 사이 거리 계산
-     */
     private float distance(float x0, float x1, float y0, float y1) {
         float x = x0 - x1;
         float y = y0 - y1;
         return (float) Math.sqrt(x * x + y * y);
     }
 
-    /**
-     * View 대각선 길이
-     */
     private float dispDistance() {
         return (float) Math.sqrt(getWidth() * getWidth() + getHeight() * getHeight());
     }
 
-    /**
-     * 화면 사각형을 PDF 사각형으로 변환한다.
-     */
     public RectF screenRectToPdfRect(RectF screenRect) {
         PointF p1 = screenToPdf(screenRect.left, screenRect.bottom);
         PointF p2 = screenToPdf(screenRect.right, screenRect.top);
@@ -805,9 +878,6 @@ public class PdfInkSignView extends AppCompatImageView {
         return pdfRect;
     }
 
-    /**
-     * PDF 사각형을 화면 사각형으로 변환한다.
-     */
     public RectF pdfRectToScreenRect(RectF pdfRect) {
         PointF p1 = pdfToScreen(pdfRect.left, pdfRect.top);
         PointF p2 = pdfToScreen(pdfRect.right, pdfRect.bottom);
@@ -820,18 +890,12 @@ public class PdfInkSignView extends AppCompatImageView {
         return screenRect;
     }
 
-    /**
-     * 화면의 선 두께(px)를 PDF 좌표계 두께로 환산한다.
-     */
     private float screenWidthToPdfWidth(float screenWidthPx) {
         RectF pageRect = getPageDrawRect();
         if (pageRect.width() <= 0) return screenWidthPx;
         return screenWidthPx * currentPdfPageWidth / pageRect.width();
     }
 
-    /**
-     * PDF 좌표계 두께를 화면의 선 두께(px)로 환산한다.
-     */
     private float pdfWidthToScreenWidth(float pdfWidth) {
         RectF pageRect = getPageDrawRect();
         if (currentPdfPageWidth <= 0) return pdfWidth;
@@ -844,126 +908,15 @@ public class PdfInkSignView extends AppCompatImageView {
             mGestureDetector.onTouchEvent(event);
         }
 
-        // 두 손가락 이상이면 확대/축소 + 2-finger pan
         if (event.getPointerCount() >= 2) {
-            PointF center = getMultiTouchCenter(event);
-
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_POINTER_DOWN:
-                case MotionEvent.ACTION_DOWN: {
-                    mLastMultiTouchCenterX = center.x;
-                    mLastMultiTouchCenterY = center.y;
-                    mIsTwoFingerPanning = false;
-                    mIsScaling = true;
-
-                    mPrevDistance = distance(
-                            event.getX(0), event.getX(1),
-                            event.getY(0), event.getY(1)
-                    );
-
-                    if (currentStroke != null) {
-                        currentStroke = null;
-                        invalidate();
-                    }
-                    return true;
-                }
-
-                case MotionEvent.ACTION_MOVE: {
-                    float dist = distance(
-                            event.getX(0), event.getX(1),
-                            event.getY(0), event.getY(1)
-                    );
-
-                    float scale = (dist - mPrevDistance) / dispDistance();
-                    mPrevDistance = dist;
-                    scale += 1f;
-                    scale = scale * scale;
-
-                    float oldScale = mScaleFactor;
-                    float newScale = mScaleFactor * scale;
-
-                    if (newScale < mMinScaleFactor) newScale = mMinScaleFactor;
-                    if (newScale > mMaxScaleFactor) newScale = mMaxScaleFactor;
-
-                    float focusX = center.x;
-                    float focusY = center.y;
-
-                    if (oldScale > 0f) {
-                        float ratio = newScale / oldScale;
-                        mTranslateX = focusX - (focusX - mTranslateX) * ratio;
-                        mTranslateY = focusY - (focusY - mTranslateY) * ratio;
-                    }
-
-                    mScaleFactor = newScale;
-
-                    float dx = center.x - mLastMultiTouchCenterX;
-                    float dy = center.y - mLastMultiTouchCenterY;
-
-                    if (Math.abs(dx) > 0.5f || Math.abs(dy) > 0.5f) {
-                        mIsTwoFingerPanning = true;
-                        mTranslateX += dx;
-                        mTranslateY += dy;
-                    }
-
-                    mLastMultiTouchCenterX = center.x;
-                    mLastMultiTouchCenterY = center.y;
-
-                    clampTranslation();
-                    invalidate();
-                    return true;
-                }
-
-                case MotionEvent.ACTION_POINTER_UP:
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    mIsTwoFingerPanning = false;
-                    mIsScaling = false;
-                    mPrevDistance = 0f;
-                    return true;
-            }
-
-            return true;
+            return handleMultiTouch(event);
         }
 
         float x = event.getX();
         float y = event.getY();
 
-        // 확대 상태에서 한 손가락 pan은 MODE_NONE에서만 허용
         if (mScaleFactor > 1.0f && mode == MODE_NONE) {
-            switch (event.getActionMasked()) {
-                case MotionEvent.ACTION_DOWN:
-                    mLastPanX = x;
-                    mLastPanY = y;
-                    mIsPanning = false;
-                    return true;
-
-                case MotionEvent.ACTION_MOVE: {
-                    float dx = x - mLastPanX;
-                    float dy = y - mLastPanY;
-
-                    if (!mIsPanning) {
-                        if (Math.abs(dx) > mTouchSlop || Math.abs(dy) > mTouchSlop) {
-                            mIsPanning = true;
-                        }
-                    }
-
-                    if (mIsPanning) {
-                        mTranslateX += dx;
-                        mTranslateY += dy;
-                        clampTranslation();
-                        invalidate();
-                    }
-
-                    mLastPanX = x;
-                    mLastPanY = y;
-                    return true;
-                }
-
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    mIsPanning = false;
-                    return true;
-            }
+            return handleOneFingerPan(event, x, y);
         }
 
         switch (mode) {
@@ -985,9 +938,120 @@ public class PdfInkSignView extends AppCompatImageView {
         }
     }
 
-    /**
-     * 펜 모드 처리
-     */
+    private boolean handleMultiTouch(MotionEvent event) {
+        PointF center = getMultiTouchCenter(event);
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_POINTER_DOWN:
+            case MotionEvent.ACTION_DOWN:
+                mLastMultiTouchCenterX = center.x;
+                mLastMultiTouchCenterY = center.y;
+                mIsTwoFingerPanning = false;
+                mIsScaling = true;
+
+                mPrevDistance = distance(
+                        event.getX(0), event.getX(1),
+                        event.getY(0), event.getY(1)
+                );
+
+                currentStroke = null;
+                invalidate();
+                return true;
+
+            case MotionEvent.ACTION_MOVE:
+                float dist = distance(
+                        event.getX(0), event.getX(1),
+                        event.getY(0), event.getY(1)
+                );
+
+                float scale = (dist - mPrevDistance) / dispDistance();
+                mPrevDistance = dist;
+                scale += 1f;
+                scale = scale * scale;
+
+                float oldScale = mScaleFactor;
+                float newScale = mScaleFactor * scale;
+
+                if (newScale < mMinScaleFactor) newScale = mMinScaleFactor;
+                if (newScale > mMaxScaleFactor) newScale = mMaxScaleFactor;
+
+                float focusX = center.x;
+                float focusY = center.y;
+
+                if (oldScale > 0f) {
+                    float ratio = newScale / oldScale;
+                    mTranslateX = focusX - (focusX - mTranslateX) * ratio;
+                    mTranslateY = focusY - (focusY - mTranslateY) * ratio;
+                }
+
+                mScaleFactor = newScale;
+
+                float dx = center.x - mLastMultiTouchCenterX;
+                float dy = center.y - mLastMultiTouchCenterY;
+
+                if (Math.abs(dx) > 0.5f || Math.abs(dy) > 0.5f) {
+                    mIsTwoFingerPanning = true;
+                    mTranslateX += dx;
+                    mTranslateY += dy;
+                }
+
+                mLastMultiTouchCenterX = center.x;
+                mLastMultiTouchCenterY = center.y;
+
+                clampTranslation();
+                invalidate();
+                return true;
+
+            case MotionEvent.ACTION_POINTER_UP:
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mIsTwoFingerPanning = false;
+                mIsScaling = false;
+                mPrevDistance = 0f;
+                return true;
+        }
+
+        return true;
+    }
+
+    private boolean handleOneFingerPan(MotionEvent event, float x, float y) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                mLastPanX = x;
+                mLastPanY = y;
+                mIsPanning = false;
+                return true;
+
+            case MotionEvent.ACTION_MOVE:
+                float dx = x - mLastPanX;
+                float dy = y - mLastPanY;
+
+                if (!mIsPanning) {
+                    if (Math.abs(dx) > mTouchSlop || Math.abs(dy) > mTouchSlop) {
+                        mIsPanning = true;
+                    }
+                }
+
+                if (mIsPanning) {
+                    mTranslateX += dx;
+                    mTranslateY += dy;
+                    clampTranslation();
+                    invalidate();
+                }
+
+                mLastPanX = x;
+                mLastPanY = y;
+                return true;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mIsPanning = false;
+                return true;
+        }
+
+        return false;
+    }
+
     private boolean handlePen(MotionEvent event, float x, float y) {
         PointF pdfPoint = screenToPdf(x, y);
 
@@ -1018,45 +1082,32 @@ public class PdfInkSignView extends AppCompatImageView {
                 }
                 return true;
         }
+
         return false;
     }
 
-    /**
-     * 지우개 모드 처리
-     */
     private boolean handleEraser(MotionEvent event, float x, float y) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN
+                || event.getAction() == MotionEvent.ACTION_MOVE) {
+
             PointF pdfPoint = screenToPdf(x, y);
             float eraserHitPdf = screenWidthToPdfWidth(eraserHitPx);
 
             eraseNearestStroke(pdfPoint.x, pdfPoint.y, eraserHitPdf);
 
-            /* sign 필드는 지우개로 삭제되지 않게 처리
-            if (signOverlay.visible) {
-                RectF screenRect = pdfRectToScreenRect(signOverlay.pdfRect);
-                if (isNearRect(screenRect, x, y, eraserHitPx)) {
-                    signOverlay.visible = false;
-                }
-            }
-            */
-
+            // sign은 지우개로 삭제하지 않는다.
             saveCurrentPageOverlay();
             invalidate();
             return true;
         }
+
         return false;
     }
 
-    /**
-     * 서명 이동 모드 처리
-     */
     private boolean handleMoveSign(MotionEvent event, float x, float y) {
         return false;
     }
 
-    /**
-     * 편집 모드 처리
-     */
     private boolean handleEditModeTap(MotionEvent event, float x, float y) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
@@ -1066,7 +1117,8 @@ public class PdfInkSignView extends AppCompatImageView {
                 return true;
 
             case MotionEvent.ACTION_MOVE:
-                if (Math.abs(x - mDownX) > mTouchSlop || Math.abs(y - mDownY) > mTouchSlop) {
+                if (Math.abs(x - mDownX) > mTouchSlop
+                        || Math.abs(y - mDownY) > mTouchSlop) {
                     mSingleTapCandidate = false;
                 }
                 return true;
@@ -1088,9 +1140,6 @@ public class PdfInkSignView extends AppCompatImageView {
         return false;
     }
 
-    /**
-     * 지우개와 가장 가까운 stroke를 찾아 삭제한다.
-     */
     private void eraseNearestStroke(float pdfX, float pdfY, float eraserHitPdf) {
         int deleteIndex = -1;
         float bestDistance = Float.MAX_VALUE;
@@ -1109,9 +1158,6 @@ public class PdfInkSignView extends AppCompatImageView {
         }
     }
 
-    /**
-     * 한 점과 stroke 사이의 최소 거리(근사)를 계산한다.
-     */
     private float distanceToStrokePdf(PdfInkStroke stroke, float pdfX, float pdfY) {
         float best = Float.MAX_VALUE;
 
@@ -1122,37 +1168,27 @@ public class PdfInkSignView extends AppCompatImageView {
             float dist = (float) Math.sqrt(dx * dx + dy * dy);
             if (dist < best) best = dist;
         }
+
         return best;
     }
 
-    /**
-     * 점이 사각형 근처에 있는지 검사
-     */
-    private boolean isNearRect(RectF rect, float x, float y, float padding) {
-        RectF r = new RectF(
-                rect.left - padding,
-                rect.top - padding,
-                rect.right + padding,
-                rect.bottom + padding
-        );
-        return r.contains(x, y);
-    }
-
-    /**
-     * PDF 관련 리소스를 모두 닫고 정리한다.
-     */
     public void closePdf() {
         saveCurrentPageOverlay();
 
         try {
             if (currentPage != null) currentPage.close();
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
+
         try {
             if (pdfRenderer != null) pdfRenderer.close();
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
+
         try {
             if (pfd != null) pfd.close();
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
 
         currentPage = null;
         pdfRenderer = null;
@@ -1163,6 +1199,7 @@ public class PdfInkSignView extends AppCompatImageView {
         if (pageBitmap != null && !pageBitmap.isRecycled()) {
             pageBitmap.recycle();
         }
+
         pageBitmap = null;
 
         mRenderedAnnotations.clear();
@@ -1174,9 +1211,6 @@ public class PdfInkSignView extends AppCompatImageView {
         resetZoom();
     }
 
-    /**
-     * PDF 내부 Ink Annotation 리스트 설정
-     */
     public void setRenderedAnnotations(List<PdfRenderedInkAnnotation> annotations) {
         mRenderedAnnotations.clear();
         if (annotations != null) {
@@ -1185,9 +1219,6 @@ public class PdfInkSignView extends AppCompatImageView {
         invalidate();
     }
 
-    /**
-     * PDF 내부 AcroForm field 리스트 설정
-     */
     public void setRenderedFormFields(List<PdfRenderedFormField> fields) {
         mRenderedFormFields.clear();
         if (fields != null) {
@@ -1198,9 +1229,6 @@ public class PdfInkSignView extends AppCompatImageView {
         invalidate();
     }
 
-    /**
-     * PDF 내부 Ink Annotation 1개를 다시 그린다.
-     */
     private void drawRenderedAnnotation(Canvas canvas, PdfRenderedInkAnnotation ann) {
         if (ann == null || !ann.isValid()) return;
 
@@ -1220,13 +1248,9 @@ public class PdfInkSignView extends AppCompatImageView {
         canvas.drawPath(path, strokePaint);
     }
 
-    /**
-     * PDF 내부 AcroForm field 1개를 화면에 다시 그린다.
-     */
     private void drawRenderedFormField(Canvas canvas, PdfRenderedFormField field, int index) {
         if (field == null || !field.isValid()) return;
 
-        // 값 변경 통지
         if (mOnPdfFieldValueChangedListener != null) {
             mOnPdfFieldValueChangedListener.onPdfFieldValueChanged(index, field);
         }
@@ -1234,25 +1258,26 @@ public class PdfInkSignView extends AppCompatImageView {
         RectF screenRect = pdfRectToScreenRect(field.pdfRect);
 
         float textSizePx = pdfWidthToScreenWidth(field.fontSizePdf);
-        if (textSizePx < 12f) textSizePx = 12f;
+
+        /*
+         * 저장 시 PdfInkPdfSaver는 field.fontSizePdf를 그대로 사용한다.
+         * 화면에서만 12px로 강제하면 저장 전/후 글자 크기가 달라진다.
+         */
+        if (textSizePx <= 0f) {
+            textSizePx = 10f;
+        }
 
         formTextPaint.setColor(field.colorArgb);
         formTextPaint.setTextSize(textSizePx);
         formTextPaint.setStyle(Paint.Style.FILL);
         formTextPaint.setTextAlign(Paint.Align.LEFT);
 
-        String type = "text";
-        try {
-            if (field.type != null && !"".equals(field.type)) {
-                type = field.type;
-            }
-        } catch (Throwable ignore) {
-        }
+        String type = safe(field.type);
+        if ("".equals(type)) type = "label";
 
-        float x = screenRect.left + 2f;
+        float x = screenRect.left;// + 2f;
         Paint.FontMetrics fm = formTextPaint.getFontMetrics();
-        float textCenterY = screenRect.centerY();
-        float y = textCenterY - ((fm.ascent + fm.descent) / 2f);
+        float y = screenRect.centerY() - ((fm.ascent + fm.descent) / 2f);
 
         Paint editablePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         editablePaint.setStyle(Paint.Style.STROKE);
@@ -1279,16 +1304,7 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("checkbox".equalsIgnoreCase(type)) {
 
-            //테두리제거
-            //canvas.drawRect(screenRect, shapePaint);
-
-            String value = safe(field.value);
-            if ("true".equalsIgnoreCase(value)
-                    || "yes".equalsIgnoreCase(value)
-                    || "on".equalsIgnoreCase(value)
-                    || "1".equalsIgnoreCase(value)
-                    || "y".equalsIgnoreCase(value)) {
-
+            if (isCheckedValue(field.value)) {
                 Paint checkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
                 checkPaint.setColor(field.colorArgb);
                 checkPaint.setStyle(Paint.Style.STROKE);
@@ -1299,17 +1315,21 @@ public class PdfInkSignView extends AppCompatImageView {
                 float w = screenRect.width();
                 float h = screenRect.height();
 
-                float startX = screenRect.left + w * 0.18f;
-                float startY = screenRect.top + h * 0.55f;
+                canvas.drawLine(
+                        screenRect.left + w * 0.18f,
+                        screenRect.top + h * 0.55f,
+                        screenRect.left + w * 0.42f,
+                        screenRect.top + h * 0.78f,
+                        checkPaint
+                );
 
-                float midX = screenRect.left + w * 0.42f;
-                float midY = screenRect.top + h * 0.78f;
-
-                float endX = screenRect.left + w * 0.82f;
-                float endY = screenRect.top + h * 0.22f;
-
-                canvas.drawLine(startX, startY, midX, midY, checkPaint);
-                canvas.drawLine(midX, midY, endX, endY, checkPaint);
+                canvas.drawLine(
+                        screenRect.left + w * 0.42f,
+                        screenRect.top + h * 0.78f,
+                        screenRect.left + w * 0.82f,
+                        screenRect.top + h * 0.22f,
+                        checkPaint
+                );
             }
 
         } else if ("radio".equalsIgnoreCase(type)) {
@@ -1332,43 +1352,50 @@ public class PdfInkSignView extends AppCompatImageView {
             canvas.drawRect(screenRect, shapePaint);
 
             String text = safe(field.value);
-            if ("".equals(text)) {
-                text = safe(field.name);
-            }
+            if ("".equals(text)) text = safe(field.name);
             canvas.drawText(text, x, y, formTextPaint);
 
         } else if ("sign".equalsIgnoreCase(type)) {
 
-            // sign 커스텀 필드 자체의 기본 테두리 표시
-            // Edge에서 보이는 sign field 테두리를 PdfInkSignView에서도 그려준다.
+            // signBorderPaint 싸인 영역이라는 표시(박스)
             Paint signBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             signBorderPaint.setStyle(Paint.Style.STROKE);
             signBorderPaint.setColor(Color.BLACK);
             signBorderPaint.setStrokeWidth(2f);
-
             canvas.drawRect(screenRect, signBorderPaint);
-
 
         } else if ("sign_image".equalsIgnoreCase(type)) {
 
-            // sign_AA10011 같은 값이면 문자열 출력하지 않고 사인 이미지만 그림
             drawDoctorSignValue(canvas, field, screenRect, safe(field.value));
 
-        }else {
+        } else {
+
             canvas.drawText(safe(field.value), x, y, formTextPaint);
+
         }
 
-        // readonly가 아닌 필드에 초록색 테두리를 그림
-        // readonly가 아닌 필드에 편집모드이면 파란색 테두리
-        if (!field.readOnly) {
+        /*
+         * 편집 가능 영역 표시
+         *
+         * 기존에는 !field.readOnly 일 때만 테두리를 그렸기 때문에
+         * metadata 방식 또는 저장된 PDF에서 readOnly=true로 읽힌 경우
+         * text / checkbox / radio / sign 영역의 안내 테두리가 보이지 않았다.
+         *
+         * 요구사항:
+         * - MODE_EDIT     : 파란색 테두리
+         * - MODE_PEN/ERASER : 초록색 테두리
+         * - MODE_NONE     : 테두리 표시 안 함
+         *
+         * 단, sign_image / label 등은 표시 대상에서 제외한다.
+         */
+        if (shouldDrawEditableBorder(field)) {
             if (mode == MODE_EDIT) {
                 canvas.drawRect(screenRect, editingPaint);
-            } else if (mode == MODE_NONE) {
-                // 조회 중... 테두리표시를 하지 않는다.
-            } else {
+            } else if (mode == MODE_PEN || mode == MODE_ERASER || mode == MODE_MOVE_SIGN) {
                 canvas.drawRect(screenRect, editablePaint);
             }
         }
+
     }
 
     private boolean drawDoctorSignValue(Canvas canvas,
@@ -1376,46 +1403,54 @@ public class PdfInkSignView extends AppCompatImageView {
                                         RectF screenRect,
                                         String value) {
         if (canvas == null || field == null || screenRect == null) return false;
-        if (value == null) return false;
 
         String drid = getSignDridFromValue(value);
         if ("".equals(drid)) return false;
 
+        /*
+         * sign_image 전용 overlay cache에서 먼저 찾는다.
+         */
+        PdfSignImageOverlay cached = getSignImageOverlayForField(field, value);
+        if (cached != null
+                && cached.visible
+                && cached.bitmap != null
+                && !cached.bitmap.isRecycled()) {
+
+            canvas.drawBitmap(cached.bitmap, null, screenRect, null);
+            return true;
+        }
+
+        /*
+         * cache가 없으면 파일에서 로딩한다.
+         */
         Bitmap signBitmap = loadDoctorSignBitmap(drid);
         if (signBitmap == null || signBitmap.isRecycled()) {
-            return true; // 문자열 sign_AA10011은 출력하지 않음
+            return true;
         }
 
         canvas.drawBitmap(signBitmap, null, screenRect, null);
 
-        // 저장 시 PdfInkPdfSaver가 이미지로 저장할 수 있도록 overlay에도 등록
-        registerAutoSignOverlay(field, signBitmap);
+        /*
+         * sign_image는 PdfSignOverlay가 아니라
+         * PdfSignImageOverlay에만 등록한다.
+         */
+        registerSignImageOverlay(field, value, signBitmap);
 
         return true;
     }
 
-    // sign 값에서 drid 추출
     private String getSignDridFromValue(String value) {
         if (value == null) return "";
 
         String v = value.trim();
 
-        if (v.startsWith("sign_")) {
-            return v.substring(5);
-        }
-
-        if (v.startsWith("logindrsign_")) {
-            return v.substring(12);
-        }
-
-        if (v.startsWith("login_sign_")) {
-            return v.substring(11);
-        }
+        if (v.startsWith("sign_")) return v.substring(5);
+        if (v.startsWith("logindrsign_")) return v.substring(12);
+        if (v.startsWith("login_sign_")) return v.substring(11);
 
         return "";
     }
 
-    // 사인 이미지 로딩 함수
     private Bitmap loadDoctorSignBitmap(String drid) {
         if (drid == null || "".equals(drid.trim())) return null;
 
@@ -1433,33 +1468,6 @@ public class PdfInkSignView extends AppCompatImageView {
         processed = expandStroke(processed, 1);
 
         return processed;
-    }
-
-    // 저장용 overlay 등록 함수
-    private void registerAutoSignOverlay(PdfRenderedFormField field, Bitmap bitmap) {
-        if (field == null || bitmap == null || bitmap.isRecycled()) return;
-        if (field.pdfRect == null) return;
-
-        String key = getSignFieldKey(field);
-        if ("".equals(key)) return;
-
-        if (mSignOverlays.containsKey(key)) {
-            return;
-        }
-
-        PdfSignOverlay overlay = new PdfSignOverlay();
-        overlay.bitmap = bitmap;
-        overlay.visible = true;
-        overlay.autoImageSign = true; // sign_AA10011 같은 자동 이미지 사인
-        overlay.pdfRect = new RectF(
-                field.pdfRect.left,
-                field.pdfRect.top,
-                field.pdfRect.right,
-                field.pdfRect.bottom
-        );
-
-        mSignOverlays.put(key, overlay);
-        saveCurrentPageOverlay();
     }
 
     private Bitmap makeTransparent(Bitmap bm) {
@@ -1503,7 +1511,6 @@ public class PdfInkSignView extends AppCompatImageView {
             int blue = Color.blue(color);
 
             alpha = Math.min(255, (int) (alpha * 1.5));
-
             pixels[i] = Color.argb(alpha, red, green, blue);
         }
 
@@ -1560,10 +1567,6 @@ public class PdfInkSignView extends AppCompatImageView {
         return out;
     }
 
-
-    /**
-     * null 안전 문자열 변환
-     */
     private String safe(String s) {
         return s == null ? "" : s;
     }
@@ -1572,9 +1575,7 @@ public class PdfInkSignView extends AppCompatImageView {
         if (field == null) return "";
 
         String name = safe(field.name).trim();
-        if (!"".equals(name)) {
-            return name;
-        }
+        if (!"".equals(name)) return name;
 
         if (field.pdfRect == null) return "";
 
@@ -1585,39 +1586,42 @@ public class PdfInkSignView extends AppCompatImageView {
                 + Math.round(field.pdfRect.bottom);
     }
 
-    private boolean isSignFieldType(String type) {
-        return "sign".equalsIgnoreCase(type);
-    }
-
-    public interface OnPdfFieldEditListener {
-        void onPdfTextFieldClick(PdfRenderedFormField field);
-    }
-
-    public void setOnPdfFieldEditListener(OnPdfFieldEditListener listener) {
-        this.mOnPdfFieldEditListener = listener;
-    }
-
-    /**
-     * 사용자가 수정한 필드값 전체를 반환한다.
-     */
     public HashMap<String, String> getEditedFieldValues() {
         return new HashMap<String, String>(mEditedFieldValues);
     }
 
-    /**
-     * 특정 필드값을 외부에서 강제로 반영한다.
-     */
     public void updateFieldValue(String fieldName, String newValue) {
         if (fieldName == null) return;
-
         if (newValue == null) newValue = "";
+
         mEditedFieldValues.put(fieldName, newValue);
 
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.name != null && field.name.equals(fieldName)) {
+
+            String name = safe(field.name);
+            String ccfField = safe(field.ccfField);
+
+            if (fieldName.equalsIgnoreCase(name)
+                    || fieldName.equalsIgnoreCase(ccfField)) {
+
                 field.value = newValue;
+
+                if (!"".equals(name)) {
+                    mEditedFieldValues.put(name, newValue);
+                }
+
+                if (!"".equals(ccfField)) {
+                    mEditedFieldValues.put(ccfField, newValue);
+                }
+
+                /*
+                 * sign_image 값이 변경되면 기존 bitmap cache 제거.
+                 */
+                if ("sign_image".equalsIgnoreCase(safe(field.type))) {
+                    removeSignImageOverlayForField(field);
+                }
             }
         }
 
@@ -1639,10 +1643,7 @@ public class PdfInkSignView extends AppCompatImageView {
         changed |= updateFieldValueIfExists("gdrlcid", gdrlcid);
         changed |= updateFieldValueIfExists("sdrlcid", sdrlcid);
 
-        if (changed) {
-            invalidate();
-        }
-
+        if (changed) invalidate();
         return changed;
     }
 
@@ -1661,61 +1662,41 @@ public class PdfInkSignView extends AppCompatImageView {
         changed |= updateFieldValueIfExists("dptcd", dptcd);
         changed |= updateFieldValueIfExists("dptnm", dptnm);
 
-        if (changed) {
-            invalidate();
-        }
-
+        if (changed) invalidate();
         return changed;
     }
+
     public boolean injectCcfValue4DrSign(String drsign) {
         boolean changed = false;
-
         if (drsign == null) drsign = "";
 
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.name == null) continue;
 
-            if ("drsign".equalsIgnoreCase(field.name)) {
+            String logicalName = safe(field.ccfField);
+            if ("".equals(logicalName)) logicalName = safe(field.name);
+
+            if ("drsign".equalsIgnoreCase(logicalName)) {
                 String oldValue = safe(field.value);
 
                 if (!drsign.equalsIgnoreCase(oldValue)) {
                     field.value = drsign;
                     changed = true;
 
-                    // 저장 시 PDF field 값도 변경되도록 보관
-                    mEditedFieldValues.put(field.name, drsign);
+                    if (field.name != null && !"".equals(field.name)) {
+                        mEditedFieldValues.put(field.name, drsign);
+                    }
 
-                    // 기존 자동 의사사인 overlay 제거
-                    removeAutoSignOverlayForField(field);
+                    removeSignImageOverlayForField(field);
                 }
             }
         }
 
-        if (changed) {
-            invalidate();
-        }
-
+        if (changed) invalidate();
         return changed;
     }
 
-    private void removeAutoSignOverlayForField(PdfRenderedFormField field) {
-        if (field == null) return;
-
-        String key = getSignFieldKey(field);
-        if ("".equals(key)) return;
-
-        PdfSignOverlay overlay = mSignOverlays.get(key);
-        if (overlay == null) return;
-
-        // 자동 이미지 사인만 제거
-        // 손으로 입력한 sign은 지우지 않음
-        if (overlay.autoImageSign) {
-            mSignOverlays.remove(key);
-            saveCurrentPageOverlay();
-        }
-    }
 
     public boolean injectCcfValue4Dept(String dptcd, String dptnm) {
         boolean changed = false;
@@ -1723,10 +1704,7 @@ public class PdfInkSignView extends AppCompatImageView {
         changed |= updateFieldValueIfExists("dptcd", dptcd);
         changed |= updateFieldValueIfExists("dptnm", dptnm);
 
-        if (changed) {
-            invalidate();
-        }
-
+        if (changed) invalidate();
         return changed;
     }
 
@@ -1740,12 +1718,10 @@ public class PdfInkSignView extends AppCompatImageView {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-            if (field.name == null) continue;
 
             String logicalName = safe(field.ccfField);
-            if ("".equalsIgnoreCase(logicalName)) {
-                logicalName = safe(field.name);
-            }
+            if ("".equals(logicalName)) logicalName = safe(field.name);
+
             if (fieldName.equalsIgnoreCase(logicalName)) {
                 exists = true;
 
@@ -1755,31 +1731,22 @@ public class PdfInkSignView extends AppCompatImageView {
                     changed = true;
                 }
 
-                // 저장은 PDF 실제 fieldName으로 해야 함
                 if (field.name != null && !"".equals(field.name)) {
                     mEditedFieldValues.put(field.name, newValue);
                 }
             }
         }
 
-        if (exists) {
-            mEditedFieldValues.put(fieldName, newValue);
-        }
+        if (exists) mEditedFieldValues.put(fieldName, newValue);
 
         return changed;
     }
 
-    /**
-     * 수정값 전체 삭제
-     */
     public void clearEditedFieldValues() {
         mEditedFieldValues.clear();
         invalidate();
     }
 
-    /**
-     * 새로 읽어온 field 리스트에 수정값을 덮어쓴다.
-     */
     private void applyEditedValuesToRenderedFields() {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
@@ -1791,11 +1758,6 @@ public class PdfInkSignView extends AppCompatImageView {
         }
     }
 
-    /**
-     * 사용자가 탭한 위치에 form field가 있으면 처리한다.
-     * - checkbox: 즉시 토글
-     * - text: 외부 리스너로 전달
-     */
     private boolean handleTapField(float x, float y) {
         for (int i = mRenderedFormFields.size() - 1; i >= 0; i--) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
@@ -1804,16 +1766,10 @@ public class PdfInkSignView extends AppCompatImageView {
             RectF screenRect = pdfRectToScreenRect(field.pdfRect);
             if (!screenRect.contains(x, y)) continue;
 
-            // readonly 필드는 편집/토글 모두 막음
-            if (field.readOnly) {
-                return true;   // 터치는 소비하지만 편집창은 띄우지 않음
-            }
-
             String type = safe(field.type);
 
             if ("checkbox".equalsIgnoreCase(type)) {
-                boolean checked = isCheckedValue(field.value);
-                String newValue = checked ? "Off" : "Yes";
+                String newValue = isCheckedValue(field.value) ? "Off" : "Yes";
 
                 field.value = newValue;
                 if (field.name != null) {
@@ -1832,8 +1788,16 @@ public class PdfInkSignView extends AppCompatImageView {
 
             if ("sign".equalsIgnoreCase(type)) {
                 if (mOnPdfSignFieldClickListener != null) {
-                    mOnPdfSignFieldClickListener.onPdfSignFieldClick(field);
-                    return true;
+                    /*
+                     * 현재 sign field에 이미 입력된 vector sign path를 가져온다.
+                     *
+                     * 반환되는 paths는 PDF 좌표계 기준이다.
+                     * PdfSignInputView에 바로 표시하려면 입력창 크기에 맞춰
+                     * PDF 좌표계 → PdfSignInputView 좌표계로 다시 변환해야 한다.
+                     */
+                    ArrayList<Path> paths = getSignPathsForField(field);
+
+                    mOnPdfSignFieldClickListener.onPdfSignFieldClick(field, paths);
                 }
                 return true;
             }
@@ -1842,19 +1806,13 @@ public class PdfInkSignView extends AppCompatImageView {
                     || "combo".equalsIgnoreCase(type)
                     || "listbox".equalsIgnoreCase(type)
                     || "choice".equalsIgnoreCase(type)
-                    || "button".equalsIgnoreCase(type)) {
+                    || "button".equalsIgnoreCase(type)
+                    || "".equals(type)) {
 
                 if (mOnPdfFieldEditListener != null) {
                     mOnPdfFieldEditListener.onPdfTextFieldClick(field);
-                    return true;
                 }
-            }
-
-            if ("".equals(type)) {
-                if (mOnPdfFieldEditListener != null) {
-                    mOnPdfFieldEditListener.onPdfTextFieldClick(field);
-                    return true;
-                }
+                return true;
             }
         }
 
@@ -1879,27 +1837,14 @@ public class PdfInkSignView extends AppCompatImageView {
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
-
-            String type = safe(field.type);
-            if (!"radio".equalsIgnoreCase(type)) continue;
+            if (!"radio".equalsIgnoreCase(safe(field.type))) continue;
 
             String fieldGroup = getRadioGroupKey(field);
+            if (!selectedGroup.equalsIgnoreCase(fieldGroup)) continue;
 
-            if (!selectedGroup.equalsIgnoreCase(fieldGroup)) {
-                continue;
-            }
-
-            String newValue;
-
-            if (field == selectedField) {
-                newValue = "selected";
-            } else {
-                newValue = "";
-            }
-
+            String newValue = field == selectedField ? "selected" : "";
             field.value = newValue;
 
-            // 저장은 PDF 실제 fieldName 기준
             if (field.name != null && !"".equals(field.name)) {
                 mEditedFieldValues.put(field.name, newValue);
             }
@@ -1909,21 +1854,15 @@ public class PdfInkSignView extends AppCompatImageView {
     private String getRadioGroupKey(PdfRenderedFormField field) {
         if (field == null) return "";
 
-        // 1순위: spec.groupName에서 온 값
         String groupName = safe(field.groupName).trim();
-        if (!"".equals(groupName)) {
-            return groupName;
-        }
+        if (!"".equals(groupName)) return groupName;
 
-        // 2순위: 기존 호환용 ccfField
         String ccfField = safe(field.ccfField).trim();
-        if (!"".equals(ccfField)) {
-            return ccfField;
-        }
+        if (!"".equals(ccfField)) return ccfField;
 
-        // 3순위: 최후 fallback
         return safe(field.name).trim();
     }
+
     private boolean isRadioSelectedValue(String value) {
         String v = safe(value).trim();
 
@@ -1936,59 +1875,597 @@ public class PdfInkSignView extends AppCompatImageView {
                 || "checked".equalsIgnoreCase(v);
     }
 
-    public void setSignBitmapToField(PdfRenderedFormField field, Bitmap bitmap) {
-        if (field == null || bitmap == null) return;
-        if (field.pdfRect == null) return;
+    /**
+     * 화면에서 편집 가능 영역 표시 테두리를 그릴 타입인지 확인한다.
+     *
+     * text / checkbox / radio / sign 은 사용자가 터치하거나 확인해야 하는 영역이므로
+     * MODE_EDIT 에서는 파란색,
+     * MODE_PEN / MODE_ERASER 에서는 초록색 테두리를 그린다.
+     */
+    private boolean shouldDrawEditableBorder(PdfRenderedFormField field) {
+        if (field == null) return false;
+
+        String type = safe(field.type).trim();
+
+        return "text".equalsIgnoreCase(type)
+                || "checkbox".equalsIgnoreCase(type)
+                || "radio".equalsIgnoreCase(type)
+                || "sign".equalsIgnoreCase(type);
+    }
+
+    /**
+     * PdfSignInputView에서 입력한 vector sign을 sign field에 저장한다.
+     *
+     * inputWidth/inputHeight:
+     * - PdfSignInputView의 실제 폭/높이
+     * - Path 좌표가 이 크기 기준으로 만들어졌기 때문에 반드시 필요하다.
+     */
+    public void setSignToField(PdfRenderedFormField field,
+                               List<Path> paths,
+                               int inputWidth,
+                               int inputHeight,
+                               float strokeWidth,
+                               int color) {
+
+        if (field == null || field.pdfRect == null) return;
 
         String key = getSignFieldKey(field);
         if ("".equals(key)) return;
 
         PdfSignOverlay overlay = new PdfSignOverlay();
-        overlay.bitmap = bitmap;
-        overlay.visible = true;
-        overlay.autoImageSign = false; // 손으로 입력한 싸인
-        overlay.pdfRect = new RectF(
-                field.pdfRect.left,
-                field.pdfRect.top,
-                field.pdfRect.right,
-                field.pdfRect.bottom
+        overlay.paths.clear();
+
+        if (paths != null) {
+            for (int i = 0; i < paths.size(); i++) {
+                Path viewPath = paths.get(i);
+                if (viewPath == null) continue;
+
+                /*
+                 * PdfSignInputView 좌표계 Path를 PDF 좌표계 Path로 변환한다.
+                 */
+                Path pdfPath = new Path(viewPath);
+                transformSignInputPathToPdf(
+                        pdfPath,
+                        inputWidth,
+                        inputHeight,
+                        field.pdfRect
+                );
+
+                overlay.paths.add(pdfPath);
+            }
+        }
+
+        /*
+         * strokeWidth도 PdfSignInputView 기준 px이므로
+         * sign field의 PDF 폭 기준으로 변환한다.
+         */
+        overlay.strokeWidth = signInputStrokeWidthToPdfWidth(
+                strokeWidth,
+                inputWidth,
+                field.pdfRect
         );
 
-        mSignOverlays.put(key, overlay);
+        overlay.strokeColor = color;
+        overlay.visible = true;
+        overlay.pdfRect = new RectF(field.pdfRect);
 
-        // sign 필드도 값이 있다는 표시를 남김
-        field.value = "signed";
-        if (field.name != null && !"".equals(field.name)) {
-            mEditedFieldValues.put(field.name, "signed");
-        }
+        overlay.fieldName = field.name;
+        overlay.ccfField = field.ccfField;
+        overlay.groupName = field.groupName;
+
+        mSignOverlays.put(key, overlay);
 
         saveCurrentPageOverlay();
         invalidate();
     }
 
-    public Bitmap getSignBitmapForField(PdfRenderedFormField field) {
+
+    /**
+     * PdfSignInputView의 좌상단 기준 Path를 PDF sign field 영역으로 변환한다.
+     *
+     * PdfSignInputView 좌표계:
+     * - 원점: 입력 View 좌상단
+     * - X: 오른쪽 증가
+     * - Y: 아래쪽 증가
+     *
+     * PDF 좌표계:
+     * - 원점: PDF 페이지 좌하단
+     * - X: 오른쪽 증가
+     * - Y: 위쪽 증가
+     *
+     * 변환:
+     * - X는 그대로 scale
+     * - Y는 위아래를 뒤집어서 scale
+     */
+    private void transformSignInputPathToPdf(Path path,
+                                             int inputWidth,
+                                             int inputHeight,
+                                             RectF fieldPdfRect) {
+        if (path == null || fieldPdfRect == null) return;
+
+        Matrix matrix = createSignInputToPdfMatrix(
+                inputWidth,
+                inputHeight,
+                fieldPdfRect
+        );
+
+        path.transform(matrix);
+    }
+
+
+    /**
+     * PdfSignInputView의 strokeWidth(px)를 PDF sign field 기준 strokeWidth로 변환한다.
+     */
+    private float signInputStrokeWidthToPdfWidth(float inputStrokeWidth,
+                                                 int inputWidth,
+                                                 RectF fieldPdfRect) {
+        if (fieldPdfRect == null) return inputStrokeWidth;
+        if (inputWidth <= 0) return inputStrokeWidth;
+
+        float fieldW = Math.abs(fieldPdfRect.right - fieldPdfRect.left);
+
+        return inputStrokeWidth * fieldW / (float) inputWidth;
+    }
+
+    /**
+     * sign field에 해당하는 PdfSignOverlay를 찾는다.
+     *
+     * 찾는 순서:
+     * 1. 현재 페이지의 mSignOverlays
+     * 2. 전체 페이지 저장소인 mPageSigns[currentPageIndex]
+     *
+     * 주의:
+     * - mSignOverlays는 현재 화면에 표시 중인 sign overlay이다.
+     * - mPageSigns는 페이지 이동 시 저장해 둔 sign overlay이다.
+     */
+    private PdfSignOverlay getSignOverlayForField(PdfRenderedFormField field) {
         if (field == null) return null;
 
         String key = getSignFieldKey(field);
         if ("".equals(key)) return null;
 
+        /*
+         * 1. 현재 페이지 overlay에서 먼저 찾는다.
+         */
         PdfSignOverlay overlay = mSignOverlays.get(key);
+
+        if (overlay != null && overlay.visible) {
+            return overlay;
+        }
+
+        /*
+         * 2. 현재 페이지 저장소에서 다시 찾는다.
+         */
+        HashMap<String, PdfSignOverlay> pageMap = mPageSigns.get(currentPageIndex);
+        if (pageMap != null) {
+            overlay = pageMap.get(key);
+
+            if (overlay != null && overlay.visible) {
+                return overlay;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * sign field에 이미 입력된 vector sign path 목록을 가져온다.
+     *
+     * 반환값:
+     * - null 아님
+     * - 기존 sign이 없으면 빈 ArrayList 반환
+     *
+     * 좌표계:
+     * - 반환되는 Path는 PDF 좌표계 기준이다.
+     * - 즉, PdfSignOverlay.paths에 저장된 값을 그대로 복사한 것이다.
+     *
+     * PdfSignInputView에 표시하려면:
+     * - PdfSignInputView의 width/height가 정해진 뒤
+     * - PDF 좌표계 Path를 PdfSignInputView 좌표계로 변환해야 한다.
+     */
+    public ArrayList<Path> getSignPathsForField(PdfRenderedFormField field) {
+        ArrayList<Path> result = new ArrayList<Path>();
+
+        PdfSignOverlay overlay = getSignOverlayForField(field);
+        if (overlay == null) return result;
+
+        if (overlay.paths == null || overlay.paths.size() <= 0) {
+            return result;
+        }
+
+        for (int i = 0; i < overlay.paths.size(); i++) {
+            Path p = overlay.paths.get(i);
+            if (p == null) continue;
+
+            /*
+             * 원본 Path를 그대로 넘기면 PdfSignInputView 쪽에서 변형할 때
+             * 기존 overlay Path가 같이 변형될 수 있다.
+             * 반드시 복사해서 반환한다.
+             */
+            result.add(new Path(p));
+        }
+
+        return result;
+    }
+
+    /**
+     * sign field에 기존 sign이 있는지 확인한다.
+     */
+    public boolean hasSignPathsForField(PdfRenderedFormField field) {
+        PdfSignOverlay overlay = getSignOverlayForField(field);
+        if (overlay == null) return false;
+
+        return overlay.paths != null && overlay.paths.size() > 0;
+    }
+
+    /**
+     * 현재 화면에 표시 중인 PDF overlay field 목록을 저장용으로 복사해서 반환한다.
+     *
+     * PdfInkPdfSaver는 AcroForm을 사용하지 않으므로
+     * 저장 시점에 이 목록을 기준으로 text / label / checkbox / radio / sign_image 값을
+     * PDF page content에 직접 그린다.
+     */
+    public List<PdfRenderedFormField> getRenderedFormFieldsSnapshot() {
+        ArrayList<PdfRenderedFormField> copied = new ArrayList<PdfRenderedFormField>();
+
+        for (int i = 0; i < mRenderedFormFields.size(); i++) {
+            PdfRenderedFormField src = mRenderedFormFields.get(i);
+            if (src == null) continue;
+
+            PdfRenderedFormField dst = new PdfRenderedFormField();
+
+            dst.pageIndex = src.pageIndex;
+            dst.name = src.name;
+            dst.ccfField = src.ccfField;
+            dst.value = src.value;
+            dst.type = src.type;
+
+            dst.fontSizePdf = src.fontSizePdf;
+            dst.colorArgb = src.colorArgb;
+
+            dst.groupName = src.groupName;
+
+            dst.pendingSign = src.pendingSign;
+            dst.editable = src.editable;
+
+            if (src.pdfRect != null) {
+                dst.pdfRect = new RectF(src.pdfRect);
+            }
+
+            copied.add(dst);
+        }
+
+        return copied;
+    }
+
+    /**
+     * PDF 좌표계 sign path를 PdfSignInputView 좌표계 path로 변환해서 반환한다.
+     *
+     * 사용 시점:
+     * - ConsentForm에서 PdfSignInputView를 생성한 뒤
+     * - signInputView.post(...) 안에서 width/height가 정해진 후 호출
+     *
+     * inputWidth/inputHeight:
+     * - PdfSignInputView의 실제 width/height
+     */
+    public ArrayList<Path> getSignInputPathsForField(
+            PdfRenderedFormField field,
+            int inputWidth,
+            int inputHeight
+    ) {
+        ArrayList<Path> result = new ArrayList<Path>();
+
+        if (field == null || field.pdfRect == null) return result;
+        if (inputWidth <= 0 || inputHeight <= 0) return result;
+
+        ArrayList<Path> pdfPaths = getSignPathsForField(field);
+        if (pdfPaths == null || pdfPaths.size() <= 0) return result;
+
+        Matrix inputToPdfMatrix = createSignInputToPdfMatrix(
+                inputWidth,
+                inputHeight,
+                field.pdfRect
+        );
+
+        Matrix pdfToInputMatrix = new Matrix();
+
+        /*
+         * input → PDF 변환 Matrix를 역변환하면
+         * PDF → input 변환 Matrix가 된다.
+         */
+        if (!inputToPdfMatrix.invert(pdfToInputMatrix)) {
+            return result;
+        }
+
+        for (int i = 0; i < pdfPaths.size(); i++) {
+            Path pdfPath = pdfPaths.get(i);
+            if (pdfPath == null) continue;
+
+            Path inputPath = new Path(pdfPath);
+            inputPath.transform(pdfToInputMatrix);
+
+            result.add(inputPath);
+        }
+
+        return result;
+    }
+
+    /**
+     * PdfSignInputView 좌표계 → PDF sign field 좌표계 변환 Matrix를 만든다.
+     *
+     * PdfSignInputView 좌표계:
+     * - 원점: 입력창 좌상단
+     * - X: 오른쪽 증가
+     * - Y: 아래쪽 증가
+     *
+     * PDF 좌표계:
+     * - 원점: PDF 페이지 좌하단
+     * - X: 오른쪽 증가
+     * - Y: 위쪽 증가
+     *
+     * 변환 방식:
+     * - 입력창 전체 영역(inputWidth x inputHeight)을
+     *   PDF sign field 영역(fieldPdfRect)에 맞춘다.
+     * - Y 방향은 서로 반대이므로 -scale을 적용한다.
+     */
+    private Matrix createSignInputToPdfMatrix(
+            int inputWidth,
+            int inputHeight,
+            RectF fieldPdfRect
+    ) {
+        Matrix matrix = new Matrix();
+
+        if (fieldPdfRect == null) {
+            return matrix;
+        }
+
+        if (inputWidth <= 0) inputWidth = 1;
+        if (inputHeight <= 0) inputHeight = 1;
+
+        /*
+         * fieldPdfRect는 PDF 좌표계 RectF이다.
+         * top/bottom이 항상 정렬되어 있다고 가정하지 않고 안전하게 정규화한다.
+         */
+        float fieldLeft = Math.min(fieldPdfRect.left, fieldPdfRect.right);
+        float fieldRight = Math.max(fieldPdfRect.left, fieldPdfRect.right);
+        float fieldBottom = Math.min(fieldPdfRect.top, fieldPdfRect.bottom);
+        float fieldTop = Math.max(fieldPdfRect.top, fieldPdfRect.bottom);
+
+        float fieldW = fieldRight - fieldLeft;
+        float fieldH = fieldTop - fieldBottom;
+
+        /*
+         * 입력창 좌표를 PDF field 크기로 scale 한다.
+         *
+         * X:
+         *   0 ~ inputWidth
+         *   → fieldLeft ~ fieldRight
+         *
+         * Y:
+         *   0 ~ inputHeight, 아래로 증가
+         *   → fieldTop ~ fieldBottom
+         *
+         * PDF는 Y가 위로 증가하므로 Y scale은 음수이다.
+         */
+        matrix.postScale(
+                fieldW / (float) inputWidth,
+                -fieldH / (float) inputHeight
+        );
+
+        /*
+         * scale 후 입력창의 (0, 0)을 PDF field의 좌상단 위치로 이동한다.
+         * Y scale이 음수이므로 translateY는 fieldTop이 된다.
+         */
+        matrix.postTranslate(fieldLeft, fieldTop);
+
+        return matrix;
+    }
+
+
+    /**
+     * PDF 좌표계의 sign Path 목록을 PdfSignInputView 좌표계 Path 목록으로 변환한다.
+     *
+     * 사용 목적:
+     * - 사용자가 이미 sign 필드에 서명한 뒤
+     * - 다시 같은 sign 필드를 터치했을 때
+     * - 기존 서명을 PdfSignInputView 입력창에 다시 표시하기 위함.
+     *
+     * 입력값:
+     * - pdfPaths:
+     *   PdfInkSignView 내부 PdfSignOverlay.paths에 저장된 Path 목록.
+     *   이 Path들은 PDF 좌표계 기준이다.
+     *
+     * - field:
+     *   현재 터치한 sign 필드.
+     *   field.pdfRect는 PDF 좌표계 기준의 sign 영역이다.
+     *
+     * - inputWidth / inputHeight:
+     *   PdfSignInputView의 실제 width / height.
+     *   반드시 dialog.show() 이후 또는 signView.post() 안에서 넘겨야 한다.
+     *
+     * 반환값:
+     * - PdfSignInputView 좌표계로 변환된 Path 목록.
+     *
+     * 좌표계 차이:
+     * - PDF 좌표계:
+     *   원점은 페이지 좌하단, Y는 위로 증가.
+     *
+     * - PdfSignInputView 좌표계:
+     *   원점은 입력창 좌상단, Y는 아래로 증가.
+     */
+    public ArrayList<Path> convertPdfSignPathsToInputPaths(
+            ArrayList<Path> pdfPaths,
+            PdfRenderedFormField field,
+            int inputWidth,
+            int inputHeight
+    ) {
+        ArrayList<Path> result = new ArrayList<Path>();
+
+        if (pdfPaths == null || pdfPaths.size() <= 0) {
+            return result;
+        }
+
+        if (field == null || field.pdfRect == null) {
+            return result;
+        }
+
+        if (inputWidth <= 0 || inputHeight <= 0) {
+            return result;
+        }
+
+        /*
+         * PdfSignInputView 좌표계 → PDF 좌표계 변환 Matrix를 만든다.
+         * 이후 invert() 해서 PDF 좌표계 → PdfSignInputView 좌표계 Matrix로 바꾼다.
+         */
+        Matrix inputToPdfMatrix = createSignInputToPdfMatrix(
+                inputWidth,
+                inputHeight,
+                field.pdfRect
+        );
+
+        Matrix pdfToInputMatrix = new Matrix();
+
+        /*
+         * 역변환 Matrix를 만들 수 없으면 변환 불가.
+         */
+        if (!inputToPdfMatrix.invert(pdfToInputMatrix)) {
+            return result;
+        }
+
+        for (int i = 0; i < pdfPaths.size(); i++) {
+            Path pdfPath = pdfPaths.get(i);
+            if (pdfPath == null) continue;
+
+            /*
+             * 원본 Path를 직접 변환하면 기존 overlay Path까지 변형될 수 있다.
+             * 반드시 복사본을 만들어 변환한다.
+             */
+            Path inputPath = new Path(pdfPath);
+            inputPath.transform(pdfToInputMatrix);
+
+            result.add(inputPath);
+        }
+
+        return result;
+    }
+
+    /**
+     * sign_image field key를 만든다.
+     *
+     * sign과 같은 getSignFieldKey 규칙을 써도 되지만,
+     * sign_image 전용 map에 들어가므로 충돌 가능성이 줄어든다.
+     */
+    private String getSignImageFieldKey(PdfRenderedFormField field) {
+        if (field == null) return "";
+
+        String name = safe(field.name).trim();
+        if (!"".equals(name)) return name;
+
+        String ccfField = safe(field.ccfField).trim();
+        if (!"".equals(ccfField) && field.pdfRect != null) {
+            return ccfField + "_"
+                    + Math.round(field.pdfRect.left) + "_"
+                    + Math.round(field.pdfRect.top) + "_"
+                    + Math.round(field.pdfRect.right) + "_"
+                    + Math.round(field.pdfRect.bottom);
+        }
+
+        if (field.pdfRect == null) return "";
+
+        return "sign_image_rect_"
+                + Math.round(field.pdfRect.left) + "_"
+                + Math.round(field.pdfRect.top) + "_"
+                + Math.round(field.pdfRect.right) + "_"
+                + Math.round(field.pdfRect.bottom);
+    }
+
+    /**
+     * sign_image overlay cache를 가져온다.
+     */
+    private PdfSignImageOverlay getSignImageOverlayForField(PdfRenderedFormField field,
+                                                            String value) {
+        if (field == null) return null;
+
+        String key = getSignImageFieldKey(field);
+        if ("".equals(key)) return null;
+
+        PdfSignImageOverlay overlay = mSignImageOverlays.get(key);
+
+        if (overlay == null) {
+            HashMap<String, PdfSignImageOverlay> pageMap = mPageSignImages.get(currentPageIndex);
+            if (pageMap != null) {
+                overlay = pageMap.get(key);
+            }
+        }
+
         if (overlay == null) return null;
         if (!overlay.visible) return null;
-        if (overlay.bitmap == null || overlay.bitmap.isRecycled()) return null;
 
-        return overlay.bitmap;
+        /*
+         * field.value가 바뀐 경우 기존 cache를 사용하면 안 된다.
+         */
+        if (!safe(value).equalsIgnoreCase(safe(overlay.value))) {
+            return null;
+        }
+
+        return overlay;
     }
 
-    private boolean isSamePdfRect(RectF a, RectF b, float tolerance) {
-        if (a == null || b == null) return false;
+    /**
+     * sign_image 전용 overlay를 등록한다.
+     *
+     * 주의:
+     * - 이 함수는 mSignOverlays를 절대 건드리지 않는다.
+     * - sign_image는 PdfSignOverlay가 아니라 PdfSignImageOverlay로만 관리한다.
+     */
+    private void registerSignImageOverlay(PdfRenderedFormField field,
+                                          String value,
+                                          Bitmap bitmap) {
+        if (field == null || bitmap == null || bitmap.isRecycled()) return;
+        if (field.pdfRect == null) return;
 
-        return Math.abs(a.left - b.left) <= tolerance
-                && Math.abs(a.top - b.top) <= tolerance
-                && Math.abs(a.right - b.right) <= tolerance
-                && Math.abs(a.bottom - b.bottom) <= tolerance;
+        String key = getSignImageFieldKey(field);
+        if ("".equals(key)) return;
+
+        PdfSignImageOverlay overlay = new PdfSignImageOverlay();
+
+        overlay.bitmap = bitmap;
+        overlay.visible = true;
+        overlay.pdfRect = new RectF(field.pdfRect);
+
+        overlay.fieldName = field.name;
+        overlay.ccfField = field.ccfField;
+        overlay.groupName = field.groupName;
+        overlay.value = value;
+
+        mSignImageOverlays.put(key, overlay);
+        saveCurrentPageOverlay();
     }
 
+    /**
+     * sign_image 값이 바뀌었을 때 기존 cache를 제거한다.
+     *
+     * 예:
+     * - 의사를 변경해서 drsign 값이 바뀐 경우
+     * - sign_image 필드를 직접 편집해서 value가 바뀐 경우
+     */
+    private void removeSignImageOverlayForField(PdfRenderedFormField field) {
+        if (field == null) return;
+
+        String key = getSignImageFieldKey(field);
+        if ("".equals(key)) return;
+
+        mSignImageOverlays.remove(key);
+
+        HashMap<String, PdfSignImageOverlay> pageMap = mPageSignImages.get(currentPageIndex);
+        if (pageMap != null) {
+            pageMap.remove(key);
+
+            if (pageMap.size() <= 0) {
+                mPageSignImages.remove(currentPageIndex);
+            }
+        }
+    }
 
 
 }
