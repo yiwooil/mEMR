@@ -243,6 +243,12 @@ public class PdfFormEditor {
         obj.put("typeName", nvl(typeName));
 
         /*
+         * autoFit:
+         * - 문자열 출력시 자동 줄바꿉할지 여부
+         */
+        obj.put("autoFit", spec.autoFit);
+
+        /*
          * radio 그룹 처리용.
          */
         obj.put("groupName", nvl(spec.groupName));

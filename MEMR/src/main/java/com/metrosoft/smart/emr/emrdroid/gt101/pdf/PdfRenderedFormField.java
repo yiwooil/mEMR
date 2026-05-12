@@ -12,6 +12,7 @@ public class PdfRenderedFormField {
     public String ccfField;
     public String value;
     public String type;
+    public boolean autoFit = false;
 
     public float fontSizePdf;
     public int colorArgb;

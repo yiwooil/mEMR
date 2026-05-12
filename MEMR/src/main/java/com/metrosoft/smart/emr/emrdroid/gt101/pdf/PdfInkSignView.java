@@ -33,6 +33,7 @@ public class PdfInkSignView extends AppCompatImageView {
      * 화면 overlay와 저장 PDF의 글자 모양/높이/baseline 차이를 줄이기 위한 목적이다.
      */
     private static final String FONT_ASSET_PATH = "fonts/NotoSansKR-Regular.ttf";
+    private static final float DEFAULT_FONT_SIZE = 10f;
 
     public static final int MODE_NONE = 0;
     public static final int MODE_PEN = 1;
@@ -1264,7 +1265,7 @@ public class PdfInkSignView extends AppCompatImageView {
          * 화면에서만 12px로 강제하면 저장 전/후 글자 크기가 달라진다.
          */
         if (textSizePx <= 0f) {
-            textSizePx = 10f;
+            textSizePx = DEFAULT_FONT_SIZE;
         }
 
         formTextPaint.setColor(field.colorArgb);
@@ -1300,7 +1301,27 @@ public class PdfInkSignView extends AppCompatImageView {
                 || "choice".equalsIgnoreCase(type)
                 || "label".equalsIgnoreCase(type)) {
 
-            canvas.drawText(safe(field.value), x, y, formTextPaint);
+            /*
+             * text/label 계열 field 출력.
+             *
+             * autoFit=true이면:
+             * - field 박스 오른쪽을 벗어나지 않도록 자동 줄바꿈
+             * - 값 안에 엔터(\n, \r\n)가 있으면 강제 줄바꿈
+             * - 줄바꿈 후 아래쪽이 field 박스를 벗어나면 출력 중단
+             *
+             * autoFit=false이면 기존처럼 한 줄 출력한다.
+             */
+            if (field.autoFit) {
+                drawAutoFitTextInBox(
+                        canvas,
+                        safe(field.value),
+                        screenRect,
+                        formTextPaint
+                );
+            } else {
+                canvas.drawText(safe(field.value), x, y, formTextPaint);
+            }
+
 
         } else if ("checkbox".equalsIgnoreCase(type)) {
 
@@ -1314,6 +1335,10 @@ public class PdfInkSignView extends AppCompatImageView {
 
                 float w = screenRect.width();
                 float h = screenRect.height();
+
+                // checkbox를 왼쪽(상단)에 붙이기 위한 용도
+                if (w < h) h = w;
+                if (h < w) w = h;
 
                 canvas.drawLine(
                         screenRect.left + w * 0.18f,
@@ -1334,11 +1359,21 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("radio".equalsIgnoreCase(type)) {
 
+            // radio 버튼을 왼쪽(상단)에 붙이기 위한 용도
+            RectF rf = new RectF(0, 0,
+                    Math.min(screenRect.width(), screenRect.height()),
+                    Math.min(screenRect.width(), screenRect.height()));
+
             float cx = screenRect.centerX();
             float cy = screenRect.centerY();
+
+            cx = screenRect.left + rf.centerX();
+            cy = screenRect.top + rf.centerY();
+
             float radius = Math.min(screenRect.width(), screenRect.height()) / 2f;
 
-            canvas.drawCircle(cx, cy, radius, shapePaint);
+            //바깥 테두리는 그리지 말자..
+            //canvas.drawCircle(cx, cy, radius, shapePaint);
 
             if (isRadioSelectedValue(field.value)) {
                 Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -1357,12 +1392,36 @@ public class PdfInkSignView extends AppCompatImageView {
 
         } else if ("sign".equalsIgnoreCase(type)) {
 
-            // signBorderPaint 싸인 영역이라는 표시(박스)
-            Paint signBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            signBorderPaint.setStyle(Paint.Style.STROKE);
-            signBorderPaint.setColor(Color.BLACK);
-            signBorderPaint.setStrokeWidth(2f);
-            canvas.drawRect(screenRect, signBorderPaint);
+            /*
+             * sign 필드 배경색.
+             *
+             * 사용자가 서명해야 하는 영역임을 약하게 표시하기 위한 색상이다.
+             * 너무 진하면 원본 PDF 내용이나 서명선이 가려질 수 있으므로
+             * alpha 값을 낮게 준다.
+             *
+             * Color.argb(alpha, red, green, blue)
+             * - alpha 0   : 완전 투명
+             * - alpha 255 : 완전 불투명
+             *
+             * 현재 값은 "노란색이 있구나" 정도로만 보이는 연한 노란색이다.
+             */
+            Paint signBgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            signBgPaint.setStyle(Paint.Style.FILL);
+            signBgPaint.setColor(Color.argb(45, 255, 235, 80));
+            canvas.drawRect(screenRect, signBgPaint);
+
+            /*
+             * sign field 외곽선.
+             *
+             * 배경을 먼저 채운 뒤 테두리를 그려야
+             * 테두리가 배경에 가려지지 않는다.
+             */
+            // 배경색을 노란색으로 하여 영영을 표시하였음로 테두리를 그리지 안흔다.
+            //Paint signBorderPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            //signBorderPaint.setStyle(Paint.Style.STROKE);
+            //signBorderPaint.setColor(Color.BLACK);
+            //signBorderPaint.setStrokeWidth(2f);
+            //canvas.drawRect(screenRect, signBorderPaint);
 
         } else if ("sign_image".equalsIgnoreCase(type)) {
 
@@ -1708,22 +1767,23 @@ public class PdfInkSignView extends AppCompatImageView {
         return changed;
     }
 
-    private boolean updateFieldValueIfExists(String fieldName, String newValue) {
-        if (fieldName == null) return false;
+    private boolean updateFieldValueIfExists(String ccfField, String newValue) {
+        if (ccfField == null) return false;
         if (newValue == null) newValue = "";
 
-        boolean exists = false;
+        //boolean exists = false;
         boolean changed = false;
 
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
             if (field == null) continue;
+            if (field.name == null) continue;
+            if ("".equalsIgnoreCase(field.name)) continue;
 
-            String logicalName = safe(field.ccfField);
-            if ("".equals(logicalName)) logicalName = safe(field.name);
+            String logicalCcfField = safe(field.ccfField);
 
-            if (fieldName.equalsIgnoreCase(logicalName)) {
-                exists = true;
+            if (ccfField.equalsIgnoreCase(logicalCcfField)) {
+                //exists = true;
 
                 String oldValue = safe(field.value);
                 if (!oldValue.equals(newValue)) {
@@ -1731,13 +1791,11 @@ public class PdfInkSignView extends AppCompatImageView {
                     changed = true;
                 }
 
-                if (field.name != null && !"".equals(field.name)) {
-                    mEditedFieldValues.put(field.name, newValue);
-                }
+                mEditedFieldValues.put(field.name, newValue);
             }
         }
 
-        if (exists) mEditedFieldValues.put(fieldName, newValue);
+        //if (exists) mEditedFieldValues.put(fieldName, newValue);
 
         return changed;
     }
@@ -1832,7 +1890,7 @@ public class PdfInkSignView extends AppCompatImageView {
         if (selectedField == null) return;
 
         String selectedGroup = getRadioGroupKey(selectedField);
-        if ("".equals(selectedGroup)) return;
+        //if ("".equals(selectedGroup)) return; // group name이 빈 값이어도 유효함.
 
         for (int i = 0; i < mRenderedFormFields.size(); i++) {
             PdfRenderedFormField field = mRenderedFormFields.get(i);
@@ -1852,15 +1910,16 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     private String getRadioGroupKey(PdfRenderedFormField field) {
-        if (field == null) return "";
+        if (field == null) return "nofield";
 
         String groupName = safe(field.groupName).trim();
-        if (!"".equals(groupName)) return groupName;
+        return groupName; // group name이 빈 값이어도 유효함.
+        //if (!"".equals(groupName)) return groupName;
 
-        String ccfField = safe(field.ccfField).trim();
-        if (!"".equals(ccfField)) return ccfField;
+        //String ccfField = safe(field.ccfField).trim();
+        //if (!"".equals(ccfField)) return ccfField;
 
-        return safe(field.name).trim();
+        //return safe(field.name).trim();
     }
 
     private boolean isRadioSelectedValue(String value) {
@@ -2119,6 +2178,7 @@ public class PdfInkSignView extends AppCompatImageView {
             dst.ccfField = src.ccfField;
             dst.value = src.value;
             dst.type = src.type;
+            dst.autoFit = src.autoFit;
 
             dst.fontSizePdf = src.fontSizePdf;
             dst.colorArgb = src.colorArgb;
@@ -2465,6 +2525,416 @@ public class PdfInkSignView extends AppCompatImageView {
                 mPageSignImages.remove(currentPageIndex);
             }
         }
+    }
+
+    /**
+     * text/label 값을 field 박스 안에 자동 줄바꿈하여 출력한다.
+     *
+     * 처리 규칙:
+     * 1. 엔터 문자는 강제 줄바꿈으로 처리한다.
+     * 2. 한 줄이 field 박스 오른쪽을 벗어나면 자동 줄바꿈한다.
+     * 3. 다음 줄이 field 박스 아래쪽을 벗어나면 더 이상 출력하지 않는다.
+     *
+     * 주의:
+     * - Android Canvas.drawText(x, y, paint)의 y는 baseline이다.
+     * - RectF는 화면 좌표계이므로 top < bottom 이다.
+     */
+    private void drawAutoFitTextInBox(Canvas canvas,
+                                      String text,
+                                      RectF box,
+                                      Paint paint) {
+        if (canvas == null || box == null || paint == null) return;
+        if (text == null) text = "";
+
+        /*
+         * 좌우/상하 여백.
+         * 글자가 박스 테두리에 너무 붙지 않게 한다.
+         */
+        float paddingX = 2f;
+        float paddingY = 0f;
+
+        float maxWidth = box.width() - (paddingX * 2f);
+        float maxHeight = box.height() - (paddingY * 2f);
+
+        if (maxWidth <= 0f || maxHeight <= 0f) {
+            return;
+        }
+
+        Paint.FontMetrics fm = paint.getFontMetrics();
+
+        /*
+         * lineHeight:
+         * - descent - ascent가 실제 글자 높이에 가깝다.
+         * - 줄 간격을 조금 주기 위해 1.05f를 곱한다.
+         */
+        float lineHeight = (fm.descent - fm.ascent) * 1.05f;
+        if (lineHeight <= 0f) {
+            lineHeight = paint.getTextSize() * 1.2f;
+        }
+
+        /*
+         * 첫 줄 baseline.
+         *
+         * box.top + paddingY는 글자 영역의 위쪽이다.
+         * Canvas.drawText는 baseline 기준이므로 -fm.ascent를 더한다.
+         */
+        float startX = box.left + paddingX;
+        float baselineY = box.top + paddingY - fm.ascent;
+
+        /*
+         * 마지막으로 허용되는 baseline.
+         *
+         * baseline + descent가 box.bottom - paddingY를 넘으면
+         * 실제 글자가 박스를 벗어난다.
+         */
+        float maxBaselineY = box.bottom - paddingY - fm.descent;
+
+        /*
+         * \r\n, \r 을 모두 \n으로 통일한다.
+         * split(..., -1)을 써야 마지막 빈 줄도 유지된다.
+         */
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        String[] paragraphs = normalized.split("\n", -1);
+
+        for (int p = 0; p < paragraphs.length; p++) {
+            String paragraph = paragraphs[p];
+
+            /*
+             * 빈 줄도 한 줄 높이를 차지하게 처리한다.
+             */
+            if ("".equals(paragraph)) {
+                if (baselineY > maxBaselineY) {
+                    return;
+                }
+
+                /*
+                 * 빈 줄은 실제로 그릴 문자는 없고 다음 줄로 이동한다.
+                 */
+                baselineY += lineHeight;
+                continue;
+            }
+
+            ArrayList<String> lines = buildWrappedLines(paragraph, paint, maxWidth);
+
+            for (int i = 0; i < lines.size(); i++) {
+                if (baselineY > maxBaselineY) {
+                    return;
+                }
+
+                canvas.drawText(lines.get(i), startX, baselineY, paint);
+                baselineY += lineHeight;
+            }
+        }
+    }
+
+    /**
+     * 한 문단을 maxWidth 안에 들어가도록 여러 줄로 분리한다.
+     *
+     * 한글/영문 혼합을 단순하고 안전하게 처리하기 위해
+     * 문자 단위로 폭을 누적한다.
+     *
+     * - 공백 단어 기준 줄바꿈보다 예쁘지는 않지만,
+     *   한글 의료 문서처럼 공백이 적은 문자열에서 안정적이다.
+     * - 한 글자 자체가 maxWidth보다 커도 최소 1글자는 한 줄에 출력한다.
+     */
+    private ArrayList<String> buildWrappedLines(String text,
+                                                Paint paint,
+                                                float maxWidth) {
+        ArrayList<String> lines = new ArrayList<String>();
+
+        if (text == null) {
+            lines.add("");
+            return lines;
+        }
+
+        if ("".equals(text)) {
+            lines.add("");
+            return lines;
+        }
+
+        StringBuilder line = new StringBuilder();
+
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+
+            String candidate = line.toString() + ch;
+
+            if (paint.measureText(candidate) <= maxWidth) {
+                line.append(ch);
+                continue;
+            }
+
+            /*
+             * candidate가 maxWidth를 넘었다.
+             * 기존 line이 있으면 먼저 한 줄로 확정한다.
+             */
+            if (line.length() > 0) {
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+
+            /*
+             * 현재 문자 하나도 maxWidth보다 클 수 있다.
+             * 그래도 무한 루프를 막기 위해 한 글자는 한 줄로 넣는다.
+             */
+            String single = String.valueOf(ch);
+            if (paint.measureText(single) > maxWidth) {
+                lines.add(single);
+            } else {
+                line.append(ch);
+            }
+        }
+
+        if (line.length() > 0) {
+            lines.add(line.toString());
+        }
+
+        return lines;
+    }
+
+    /**
+     * autoFit field 입력창에 필요한 정보를 계산한다.
+     *
+     * 계산 내용:
+     * - field 박스 폭 기준 한 줄 예상 최대 글자 수
+     * - field 박스 높이 기준 최대 줄 수
+     * - field 박스 전체 예상 최대 글자 수
+     * - 현재 value가 field 박스 폭 기준 몇 줄 필요한지
+     * - EditText에 적용할 추천 줄 수
+     *
+     * 주의:
+     * - maxCharsPerLine / maxCharsTotal은 "한글 기준 예상값"이다.
+     * - 영문, 숫자, 공백은 한글보다 폭이 좁아 더 많이 들어갈 수 있다.
+     */
+    public PdfAutoFitInputInfo getAutoFitInputInfo(PdfRenderedFormField field, String value) {
+        PdfAutoFitInputInfo info = new PdfAutoFitInputInfo();
+
+        /*
+         * 계산 실패 시 기본값.
+         */
+        info.maxCharsPerLine = 10;
+        info.maxLines = 2;
+        info.maxCharsTotal = 20;
+        info.requiredLines = 2;
+        info.editLines = 2;
+
+        if (field == null || field.pdfRect == null) {
+            return info;
+        }
+
+        if (value == null) value = "";
+
+        /*
+         * field.pdfRect는 PDF 좌표계이다.
+         * 실제 화면에 그리는 기준과 동일하게 screenRect로 변환한다.
+         */
+        RectF screenRect = pdfRectToScreenRect(field.pdfRect);
+
+        if (screenRect.width() <= 0f || screenRect.height() <= 0f) {
+            return info;
+        }
+
+        /*
+         * drawRenderedFormField()와 동일하게 fontSizePdf를 화면 px로 변환한다.
+         */
+        float textSizePx = pdfWidthToScreenWidth(field.fontSizePdf);
+
+        if (textSizePx <= 0f) {
+            textSizePx = 10f;
+        }
+
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(field.colorArgb);
+        paint.setTextSize(textSizePx);
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTextAlign(Paint.Align.LEFT);
+
+        /*
+         * 화면 출력과 같은 폰트 사용.
+         */
+        paint.setTypeface(formTextPaint.getTypeface());
+
+        /*
+         * drawAutoFitTextInBox()와 같은 padding 기준.
+         */
+        float paddingX = 2f;
+        float paddingY = 2f;
+
+        float maxTextWidth = screenRect.width() - (paddingX * 2f);
+        float maxTextHeight = screenRect.height() - (paddingY * 2f);
+
+        if (maxTextWidth <= 0f || maxTextHeight <= 0f) {
+            return info;
+        }
+
+        Paint.FontMetrics fm = paint.getFontMetrics();
+
+        /*
+         * drawAutoFitTextInBox()와 같은 줄 높이 기준.
+         */
+        float lineHeight = (fm.descent - fm.ascent) * 1.05f;
+
+        if (lineHeight <= 0f) {
+            lineHeight = paint.getTextSize() * 1.2f;
+        }
+
+        /*
+         * field 박스 높이에 들어갈 수 있는 최대 줄 수.
+         */
+        int maxLines = (int) (maxTextHeight / lineHeight);
+        if (maxLines < 1) maxLines = 1;
+
+        /*
+         * 한 줄에 들어갈 예상 최대 글자 수.
+         *
+         * 한글 기준으로 계산한다.
+         * "가"는 일반적인 한글 한 글자 폭을 대표값으로 사용한다.
+         */
+        float avgCharWidth = paint.measureText("가");
+
+        if (avgCharWidth <= 0f) {
+            avgCharWidth = paint.getTextSize();
+        }
+
+        int maxCharsPerLine = (int) (maxTextWidth / avgCharWidth);
+        if (maxCharsPerLine < 1) maxCharsPerLine = 1;
+
+        /*
+         * field 전체에 들어갈 예상 최대 글자 수.
+         */
+        int maxCharsTotal = maxCharsPerLine * maxLines;
+        if (maxCharsTotal < 1) maxCharsTotal = 1;
+
+        /*
+         * 현재 value가 field 박스 폭 기준으로 몇 줄 필요한지 계산한다.
+         */
+        int requiredLines = estimateAutoFitRequiredLines(value, paint, maxTextWidth);
+        if (requiredLines < 1) requiredLines = 1;
+
+        /*
+         * EditText 추천 줄 수.
+         *
+         * 현재 입력값이 필요한 줄 수를 기준으로 하되,
+         * 실제 field 박스에 들어갈 수 있는 줄 수를 넘지 않게 한다.
+         */
+        int editLines = requiredLines;
+
+        if (editLines > maxLines) editLines = maxLines;
+        if (editLines < 2) editLines = 2;
+        if (editLines > 10) editLines = 10;
+
+        info.maxCharsPerLine = maxCharsPerLine;
+        info.maxLines = maxLines;
+        info.maxCharsTotal = maxCharsTotal;
+        info.requiredLines = requiredLines;
+        info.editLines = editLines;
+
+        return info;
+    }
+
+
+    /**
+     * autoFit text가 field 박스 폭 기준으로 몇 줄이 필요한지 계산한다.
+     *
+     * drawAutoFitTextInBox()와 같은 방식으로:
+     * - 엔터는 강제 줄바꿈
+     * - 오른쪽 폭을 넘으면 문자 단위 자동 줄바꿈
+     */
+    private int estimateAutoFitRequiredLines(String text, Paint paint, float maxWidth) {
+        if (text == null) text = "";
+        if (paint == null || maxWidth <= 0f) return 1;
+
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        String[] paragraphs = normalized.split("\n", -1);
+
+        int totalLines = 0;
+
+        for (int i = 0; i < paragraphs.length; i++) {
+            String paragraph = paragraphs[i];
+
+            if ("".equals(paragraph)) {
+                totalLines++;
+                continue;
+            }
+
+            totalLines += estimateWrappedLineCount(paragraph, paint, maxWidth);
+        }
+
+        if (totalLines <= 0) totalLines = 1;
+
+        return totalLines;
+    }
+
+    /**
+     * 한 문단이 maxWidth 안에서 몇 줄로 나뉘는지 계산한다.
+     *
+     * 한글은 공백 없이 길어지는 경우가 많으므로 문자 단위로 계산한다.
+     */
+    private int estimateWrappedLineCount(String text, Paint paint, float maxWidth) {
+        if (text == null || "".equals(text)) return 1;
+        if (paint == null || maxWidth <= 0f) return 1;
+
+        int lineCount = 1;
+        StringBuilder line = new StringBuilder();
+
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+
+            String candidate = line.toString() + ch;
+
+            if (paint.measureText(candidate) <= maxWidth) {
+                line.append(ch);
+                continue;
+            }
+
+            /*
+             * 현재 문자를 붙이면 field 박스 폭을 넘으므로 다음 줄로 이동.
+             */
+            lineCount++;
+            line.setLength(0);
+
+            /*
+             * 현재 문자 하나가 maxWidth보다 큰 경우에도
+             * 무한 루프를 피하기 위해 새 줄에 넣고 계속 진행한다.
+             */
+            line.append(ch);
+        }
+
+        return lineCount;
+    }
+
+    /**
+     * autoFit text field의 입력 가능 정보.
+     */
+    public static class PdfAutoFitInputInfo {
+        /**
+         * field 박스 폭 기준으로 한 줄에 들어갈 수 있는 예상 글자 수.
+         * 한글 "가" 기준으로 계산한다.
+         */
+        public int maxCharsPerLine;
+
+        /**
+         * field 박스 높이 기준으로 들어갈 수 있는 최대 줄 수.
+         */
+        public int maxLines;
+
+        /**
+         * field 박스 전체에 들어갈 수 있는 예상 최대 글자 수.
+         *
+         * 계산식:
+         * maxCharsPerLine * maxLines
+         */
+        public int maxCharsTotal;
+
+        /**
+         * 현재 value가 field 박스 폭 기준으로 몇 줄 필요한지.
+         */
+        public int requiredLines;
+
+        /**
+         * EditText에 적용할 추천 줄 수.
+         */
+        public int editLines;
     }
 
 

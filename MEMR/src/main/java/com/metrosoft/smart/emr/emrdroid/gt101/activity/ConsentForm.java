@@ -31,10 +31,13 @@ import android.os.Handler;
 import android.provider.MediaStore;
 import android.provider.MediaStore.Images;
 import android.support.v4.content.FileProvider;
+import android.text.InputType;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup.LayoutParams;
+import android.view.inputmethod.EditorInfo;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.AdapterView;
@@ -231,7 +234,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         mEmrScanClass = intent.getStringExtra("emrScanClass");
         mSubPageList = intent.getStringExtra("subPageList");
         mPreSavedBdiv = intent.getStringExtra("preSavedBdiv");
-        mHxType  = intent.getStringExtra("hx_type"); // 수술이력, 일자선택 등
+        mHxType = intent.getStringExtra("hx_type"); // 수술이력, 일자선택 등
         mDrid = intent.getStringExtra("drid"); // 2024.06.21 WOOIL - 의사ID
         mQfycd = intent.getStringExtra("qfycd"); // 2024.06.24 WOOIL - 자격
         mReSaveYn = intent.getStringExtra("re_save_yn"); // 2026.02.04 WOOIL - 동의서를 다시 작성하는지 여부
@@ -546,7 +549,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
                             return;
                         }
-                        setEditFieldVisible(field.name, field.value);
+                        setEditFieldVisible(field.ccfField, field.value);
                     }
                 }
             );
@@ -3172,6 +3175,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 String ccfValue     = nvl(rsHelper.getString(i, "ccf_value"));
                 String ccfTypeName  = nvl(rsHelper.getString(i, "ccf_type_name")).trim();
                 String ccfGroupName = nvl(rsHelper.getString(i, "ccf_group_name")).trim();
+                String ccfAutoFit   = nvl(rsHelper.getString(i, "ccf_auto_fit")).trim();
 
                 if ("".equals(ccfField)) continue;
 
@@ -3182,6 +3186,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 spec.fieldName = ccfField + i; // form field 이름이 중복되면 안된다.
                 spec.ccfField = ccfField;
                 spec.value = ccfValue;
+                spec.autoFit = Utils.toBoolean(ccfAutoFit);
                 spec.groupName = ccfGroupName; // radio 버튼인 경우 하나만 선택되게 처리하기 위한 변수
 
                 // 좌표 / 크기
@@ -3230,6 +3235,66 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         editText.setText(field.value == null ? "" : field.value);
         editText.setSelection(editText.getText().length());
 
+        /*
+         * autoFit=true이면 여러 줄 입력을 허용한다.
+         *
+         * autoFit=true field는 PdfInkSignView / PdfInkPdfSaver에서
+         * 박스 너비와 높이에 맞춰 자동 줄바꿈하여 출력하므로,
+         * 사용자가 직접 엔터를 입력할 수 있어야 한다.
+         *
+         * autoFit=false이면 기존처럼 한 줄 입력만 허용한다.
+         */
+        if (field.autoFit) {
+            editText.setSingleLine(false);
+            editText.setGravity(Gravity.TOP | Gravity.LEFT);
+
+            editText.setInputType(
+                    InputType.TYPE_CLASS_TEXT
+                            | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                            | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            );
+
+            editText.setImeOptions(EditorInfo.IME_ACTION_NONE);
+
+            editText.setVerticalScrollBarEnabled(true);
+            editText.setScrollBarStyle(View.SCROLLBARS_INSIDE_INSET);
+
+            /*
+             * PdfInkSignView가 실제 field 박스 기준으로 계산한 입력 정보.
+             */
+            PdfInkSignView.PdfAutoFitInputInfo inputInfo =
+                    pdfView.getAutoFitInputInfo(
+                            field,
+                            field.value == null ? "" : field.value
+                    );
+
+            /*
+             * field 박스에 들어갈 수 있는 줄 수 기준으로 EditText 높이 설정.
+             */
+            editText.setMinLines(inputInfo.editLines);
+            editText.setMaxLines(inputInfo.maxLines);
+            editText.setLines(inputInfo.maxLines);
+
+            /*
+             * 선택사항:
+             * 사용자에게 참고 힌트를 보여줄 수 있다.
+             * 예: 한 줄 약 12자, 최대 3줄
+             */
+            editText.setHint("한 줄 약 "
+                    + inputInfo.maxCharsPerLine
+                    + "자, 최대 "
+                    + inputInfo.maxLines
+                    + "줄 / 총 약 "
+                    + inputInfo.maxCharsTotal
+                    + "자");
+
+        } else {
+            editText.setSingleLine(true);
+            editText.setInputType(InputType.TYPE_CLASS_TEXT);
+            editText.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        }
+
+
         String title = field.name == null ? "텍스트 입력" : field.name;
         title = "입력";
 
@@ -3241,7 +3306,18 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 String newValue = editText.getText().toString();
-                pdfView.updateFieldValue(field.name, newValue);
+
+                /*
+                 * field.name이 비어있을 가능성에 대비한다.
+                 * updateFieldValue()가 name/ccfField 둘 다 비교하도록 되어 있다면
+                 * ccfField를 넘겨도 된다.
+                 */
+                String updateKey = field.name;
+                if (updateKey == null || "".equals(updateKey.trim())) {
+                    updateKey = field.ccfField;
+                }
+
+                pdfView.updateFieldValue(updateKey, newValue);
                 dialog.dismiss();
             }
         });
