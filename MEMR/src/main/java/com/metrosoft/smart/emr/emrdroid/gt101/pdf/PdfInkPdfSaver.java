@@ -14,12 +14,14 @@ import com.tom_roush.pdfbox.cos.COSName;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream;
+import com.tom_roush.pdfbox.pdmodel.PDResources;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
 import com.tom_roush.pdfbox.pdmodel.font.PDType0Font;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDColor;
 import com.tom_roush.pdfbox.pdmodel.graphics.color.PDDeviceRGB;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory;
 import com.tom_roush.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDAnnotationMarkup;
 import com.tom_roush.pdfbox.pdmodel.interactive.annotation.PDBorderStyleDictionary;
 
@@ -74,6 +76,7 @@ public class PdfInkPdfSaver {
     private static final String FONT_ASSET_PATH = "fonts/NotoSansKR-Regular.ttf";
 
     private static final float DEFAULT_FONT_SIZE = 10f;
+    private static final float PDF_TEXT_FONT_SCALE = 0.95f;
 
     /**
      * 전체 페이지 저장.
@@ -182,8 +185,19 @@ public class PdfInkPdfSaver {
 
                         /*
                          * 사용자가 손으로 입력한 sign 저장.
+                         *
+                         * sign 영역을 먼저 아주 연한 노란색으로 채운 뒤,
+                         * 그 위에 실제 서명 path를 저장한다.
+                         *
+                         * 주의:
+                         * - sign 배경은 서명된 sign에 대해서만 굳혀서 저장한다.
+                         * - 미서명 sign은 metadata로 다시 남기므로,
+                         *   다음 조회 시 PdfInkSignView가 화면에서 배경을 다시 그리게 한다.
+                         * - 미서명 sign까지 PDF 본문에 배경을 계속 저장하면
+                         *   임시저장을 반복할 때 노란색이 누적되어 진해질 수 있다.
                          */
                         if (hasVectorSign(sign)) {
+                            drawSignFieldBackground(document, page, sign.pdfRect);
                             savePageSignVector(document, page, sign);
                         }
                     }
@@ -305,6 +319,14 @@ public class PdfInkPdfSaver {
     /**
      * text/label 값을 PDF에 직접 그린다.
      *
+     * autoFit=false:
+     * - 기존처럼 한 줄로 출력한다.
+     *
+     * autoFit=true:
+     * - field 박스 오른쪽을 벗어나면 자동 줄바꿈한다.
+     * - \n, \r\n, \r 문자는 강제 줄바꿈으로 처리한다.
+     * - 다음 줄이 field 박스 아래쪽을 벗어나면 출력을 중단한다.
+     *
      * PdfFormEditor가 값을 PDF에 미리 그리지 않는 구조이므로,
      * 여기서는 흰색으로 지우는 처리를 하지 않는다.
      */
@@ -319,13 +341,52 @@ public class PdfInkPdfSaver {
         if (document == null || page == null || field == null || field.pdfRect == null) return;
         if (font == null) return;
 
+        /*
+         * normalizeRect()는 PDF 좌표계 기준으로
+         * left <= right, top >= bottom 형태를 만든다.
+         *
+         * Android RectF.height()는 bottom - top이라서 음수가 될 수 있으므로
+         * 여기서는 top/bottom/width/height를 직접 계산해서 사용한다.
+         */
         RectF r = normalizeRect(field.pdfRect);
+
+        float left = Math.min(r.left, r.right);
+        float right = Math.max(r.left, r.right);
+        float top = Math.max(r.top, r.bottom);
+        float bottom = Math.min(r.top, r.bottom);
+
+        float boxWidth = right - left;
+        float boxHeight = top - bottom;
+
+        if (boxWidth <= 0f || boxHeight <= 0f) return;
 
         float fontSize = field.fontSizePdf <= 0 ? DEFAULT_FONT_SIZE : field.fontSizePdf;
 
         /*
-         * PDFBox의 text y 좌표는 baseline이다.
-         * field 영역 중앙에 글자가 오도록 ascent/descent 기준으로 baseline을 계산한다.
+         * Android 화면 표시보다 PDF 저장 글자가 약간 크고 진하게 보이는 현상을 줄이기 위한 보정값.
+         *
+         * PDFBox + PDF Viewer 렌더링은 Android Canvas보다 글자가 조금 크게/진하게 보일 수 있다.
+         * 실제 양식 기준으로 0.90f ~ 0.95f 사이에서 조정한다.
+         */
+        fontSize *= PDF_TEXT_FONT_SCALE;
+
+        if (field.autoFit) {
+            drawAutoFitTextValue(
+                    document,
+                    page,
+                    left,
+                    right,
+                    top,
+                    bottom,
+                    safe(value),
+                    font,
+                    fontSize
+            );
+            return;
+        }
+
+        /*
+         * 기존 한 줄 출력.
          */
         float ascent;
         float descent;
@@ -338,27 +399,13 @@ public class PdfInkPdfSaver {
             descent = -fontSize * 0.2f;
         }
 
-        float centerY = r.bottom + (r.height() / 2f);
+        float centerY = bottom + (boxHeight / 2f);
         float baselineY = centerY - ((ascent + descent) / 2f);
 
         /*
-         * 화면 표시(PdfInkSignView)와 PDF 저장(PdfInkPdfSaver)의 텍스트 위치 보정값.
-         *
-         * PdfInkSignView는 Android Canvas + Android Paint.FontMetrics 기준으로 그린다.
-         * PdfInkPdfSaver는 PDFBox + PDType0Font font descriptor 기준으로 그린다.
-         *
-         * 두 클래스가 같은 NotoSansKR-Regular.ttf를 사용하더라도
-         * Android 렌더링과 PDFBox 렌더링의 baseline/metric 차이가 있어서
-         * 실제 저장 PDF에서 위치가 다르게 보일 수 있다.
-         *
-         * 테스트 결과 현재 양식에서는 16f 보정이 화면 overlay 위치와 가장 잘 맞는다.
-         *
-         * 주의:
-         * - 이 값은 PDF 좌표 단위이다.
-         * - 값이 커질수록 저장된 PDF의 글자가 위로 올라간다.
-         * - 값이 작아질수록 저장된 PDF의 글자가 아래로 내려간다.
+         * 현재 양식에서 화면 overlay와 저장 PDF의 텍스트 baseline 차이를 맞추기 위한 보정값.
          */
-        float yAdjust = 16f;
+        float yAdjust = 2f;
         baselineY += yAdjust;
 
         PDPageContentStream cs = null;
@@ -375,7 +422,7 @@ public class PdfInkPdfSaver {
             cs.beginText();
             cs.setFont(font, fontSize);
             cs.setNonStrokingColor(0, 0, 0);
-            cs.newLineAtOffset(r.left + 2f, baselineY);
+            cs.newLineAtOffset(left + 2f, baselineY);
             cs.showText(safe(value));
             cs.endText();
 
@@ -387,6 +434,260 @@ public class PdfInkPdfSaver {
                 }
             }
         }
+    }
+
+    /**
+     * autoFit=true인 text/label 값을 PDF field 박스 안에 여러 줄로 저장한다.
+     *
+     * PDF 좌표계:
+     * - 원점: 페이지 좌하단
+     * - Y: 위쪽 증가
+     *
+     * 입력된 top/bottom:
+     * - top은 field의 위쪽 Y
+     * - bottom은 field의 아래쪽 Y
+     */
+    private static void drawAutoFitTextValue(
+            PDDocument document,
+            PDPage page,
+            float left,
+            float right,
+            float top,
+            float bottom,
+            String value,
+            PDType0Font font,
+            float fontSize
+    ) throws IOException {
+
+        if (document == null || page == null || font == null) return;
+        if (value == null) value = "";
+
+        /*
+         * field 내부 여백.
+         */
+        float paddingX = 2f;
+        float paddingTop = 0f;
+        float paddingBottom = 0f;
+
+        float maxWidth = (right - left) - (paddingX * 2f);
+        float maxHeight = (top - bottom) - paddingTop - paddingBottom;
+
+        if (maxWidth <= 0f || maxHeight <= 0f) {
+            return;
+        }
+
+        float ascent;
+        float descent;
+
+        try {
+            ascent = font.getFontDescriptor().getAscent() / 1000f * fontSize;
+            descent = font.getFontDescriptor().getDescent() / 1000f * fontSize;
+        } catch (Exception ignore) {
+            ascent = fontSize * 0.8f;
+            descent = -fontSize * 0.2f;
+        }
+
+        /*
+         * autoFit은 여러 줄 출력이므로 기존 중앙 정렬 baseline이 아니라
+         * field 상단부터 아래 방향으로 출력한다.
+         *
+         * PDF에서 baseline은 글자의 top이 아니다.
+         * 첫 줄 baseline = field top - paddingTop - ascent.
+         */
+        float yAdjust = 2f;
+        float baselineY = top - paddingTop - ascent + yAdjust;
+
+        /*
+         * PDF 좌표계에서는 아래쪽으로 내려갈수록 Y가 작아진다.
+         * 글자의 아래쪽은 baseline + descent이다.
+         * descent는 보통 음수이므로, 이 값이 bottom + paddingBottom보다 작아지면 박스를 벗어난다.
+         */
+        float minBaselineY = bottom + paddingBottom - descent;
+
+        /*
+         * 줄 간격.
+         * PDF 좌표에서는 다음 줄로 내려갈 때 baselineY에서 lineHeight를 뺀다.
+         */
+        float lineHeight = (ascent - descent) * 1.05f;
+        if (lineHeight <= 0f) {
+            lineHeight = fontSize * 1.2f;
+        }
+
+        ArrayList<String> lines = buildAutoFitLines(value, font, fontSize, maxWidth);
+
+        PDPageContentStream cs = null;
+
+        try {
+            cs = new PDPageContentStream(
+                    document,
+                    page,
+                    PDPageContentStream.AppendMode.APPEND,
+                    true,
+                    true
+            );
+
+            cs.setFont(font, fontSize);
+            cs.setNonStrokingColor(0, 0, 0);
+
+            for (int i = 0; i < lines.size(); i++) {
+                /*
+                 * baseline이 허용 범위보다 아래로 내려가면 출력 중단.
+                 */
+                if (baselineY < minBaselineY) {
+                    break;
+                }
+
+                String line = lines.get(i);
+
+                /*
+                 * 빈 줄은 줄 높이만 차지하고 출력하지 않는다.
+                 */
+                if (!"".equals(line)) {
+                    cs.beginText();
+                    cs.newLineAtOffset(left + paddingX, baselineY);
+                    cs.showText(line);
+                    cs.endText();
+                }
+
+                baselineY -= lineHeight;
+            }
+
+        } finally {
+            if (cs != null) {
+                try {
+                    cs.close();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+    }
+
+    /**
+     * autoFit용 줄 목록을 만든다.
+     *
+     * 처리 규칙:
+     * - \r\n, \r은 \n으로 통일한다.
+     * - \n은 강제 줄바꿈이다.
+     * - 한 문단이 maxWidth를 넘으면 문자 단위로 자동 줄바꿈한다.
+     *
+     * 문자 단위 줄바꿈을 사용하는 이유:
+     * - 한글 의료 문서는 공백이 적은 문자열이 많다.
+     * - 단어 단위 줄바꿈만 사용하면 박스를 벗어나는 경우가 생긴다.
+     */
+    private static ArrayList<String> buildAutoFitLines(
+            String text,
+            PDType0Font font,
+            float fontSize,
+            float maxWidth
+    ) throws IOException {
+
+        ArrayList<String> result = new ArrayList<String>();
+
+        if (text == null) {
+            result.add("");
+            return result;
+        }
+
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        String[] paragraphs = normalized.split("\n", -1);
+
+        for (int p = 0; p < paragraphs.length; p++) {
+            String paragraph = paragraphs[p];
+
+            /*
+             * 엔터로 생긴 빈 줄도 한 줄로 유지한다.
+             */
+            if ("".equals(paragraph)) {
+                result.add("");
+                continue;
+            }
+
+            ArrayList<String> wrapped = wrapParagraphByWidth(
+                    paragraph,
+                    font,
+                    fontSize,
+                    maxWidth
+            );
+
+            result.addAll(wrapped);
+        }
+
+        return result;
+    }
+
+    /**
+     * 한 문단을 maxWidth 안에 들어가도록 문자 단위로 나눈다.
+     */
+    private static ArrayList<String> wrapParagraphByWidth(
+            String paragraph,
+            PDType0Font font,
+            float fontSize,
+            float maxWidth
+    ) throws IOException {
+
+        ArrayList<String> result = new ArrayList<String>();
+
+        if (paragraph == null || "".equals(paragraph)) {
+            result.add("");
+            return result;
+        }
+
+        StringBuilder line = new StringBuilder();
+
+        for (int i = 0; i < paragraph.length(); i++) {
+            char ch = paragraph.charAt(i);
+
+            String candidate = line.toString() + ch;
+
+            if (getTextWidth(font, fontSize, candidate) <= maxWidth) {
+                line.append(ch);
+                continue;
+            }
+
+            /*
+             * 현재 글자를 붙이면 maxWidth를 넘는다.
+             * 기존 line을 먼저 확정한다.
+             */
+            if (line.length() > 0) {
+                result.add(line.toString());
+                line.setLength(0);
+            }
+
+            /*
+             * 한 글자 자체가 maxWidth보다 큰 경우도 무한루프 방지를 위해 한 줄로 넣는다.
+             */
+            String single = String.valueOf(ch);
+            if (getTextWidth(font, fontSize, single) > maxWidth) {
+                result.add(single);
+            } else {
+                line.append(ch);
+            }
+        }
+
+        if (line.length() > 0) {
+            result.add(line.toString());
+        }
+
+        return result;
+    }
+
+    /**
+     * PDFBox font 기준 문자열 폭을 PDF 좌표 단위로 계산한다.
+     */
+    private static float getTextWidth(
+            PDType0Font font,
+            float fontSize,
+            String text
+    ) throws IOException {
+
+        if (font == null || text == null || "".equals(text)) {
+            return 0f;
+        }
+
+        /*
+         * PDFBox getStringWidth()는 1000 unit 기준 폭을 반환한다.
+         */
+        return font.getStringWidth(text) / 1000f * fontSize;
     }
 
     /**
@@ -409,7 +710,14 @@ public class PdfInkPdfSaver {
             return;
         }
 
-        RectF r = normalizeRect(field.pdfRect);
+        RectF nr = normalizeRect(field.pdfRect);
+
+        // checkbox 버튼을 왼쪽(상단)에 붙이기 위한 용도
+        RectF r = new RectF();
+        r.left = nr.left;
+        r.right = nr.left + Math.min(Math.abs(nr.width()), Math.abs(nr.height()));
+        r.top = nr.bottom + Math.min(Math.abs(nr.width()), Math.abs(nr.height()));
+        r.bottom = nr.bottom;
 
         PDPageContentStream cs = null;
 
@@ -425,6 +733,9 @@ public class PdfInkPdfSaver {
             cs.setStrokingColor(0, 0, 0);
             cs.setLineWidth(Math.max(1.2f, Math.min(r.width(), r.height()) * 0.12f));
 
+            float w = r.width();
+            float h = r.height();
+
             /*
              * 체크표시 V 모양:
              * - start : 왼쪽 중간쯤
@@ -434,14 +745,14 @@ public class PdfInkPdfSaver {
              * PDF 좌표계는 Y가 위로 증가하므로
              * midY가 startY, endY보다 작아야 V 모양이 된다.
              */
-            float startX = r.left + r.width() * 0.18f;
-            float startY = r.top + r.height() * 0.55f;
+            float startX = r.left + w * 0.18f;
+            float startY = r.top + h * 0.55f;
 
-            float midX = r.left + r.width() * 0.42f;
-            float midY = r.top + r.height() * 0.78f;
+            float midX = r.left + w * 0.42f;
+            float midY = r.top + h * 0.78f;
 
-            float endX = r.left + r.width() * 0.82f;
-            float endY = r.top + r.height() * 0.22f;
+            float endX = r.left + w * 0.82f;
+            float endY = r.top + h * 0.22f;
 
             cs.moveTo(startX, startY);
             cs.lineTo(midX, midY);
@@ -475,7 +786,14 @@ public class PdfInkPdfSaver {
 
         if (document == null || page == null || field == null || field.pdfRect == null) return;
 
-        RectF r = normalizeRect(field.pdfRect);
+        RectF nr = normalizeRect(field.pdfRect);
+
+        // radio 버튼을 왼쪽(상단)에 붙이기 위한 용도
+        RectF r = new RectF();
+        r.left = nr.left;
+        r.right = nr.left + Math.min(Math.abs(nr.width()), Math.abs(nr.height()));
+        r.top = nr.bottom + Math.min(Math.abs(nr.width()), Math.abs(nr.height()));
+        r.bottom = nr.bottom;
 
         float size = Math.min(r.width(), r.height());
         float cx = r.left + r.width() / 2f;
@@ -494,11 +812,13 @@ public class PdfInkPdfSaver {
                     true
             );
 
+            /* 바깥 테두리는 그리지 말자..
             cs.setStrokingColor(0, 0, 0);
             cs.setLineWidth(1f);
 
             drawCircle(cs, cx, cy, radius);
             cs.stroke();
+             */
 
             if (isTrueValue(value)) {
                 cs.setNonStrokingColor(0, 0, 0);
@@ -711,6 +1031,104 @@ public class PdfInkPdfSaver {
     }
 
     /**
+     * sign 필드 영역을 아주 연한 노란색으로 채운다.
+     *
+     * 목적:
+     * - 저장된 PDF에서도 이 영역이 서명 영역이라는 것을 약하게 표시한다.
+     *
+     * 색상 정책:
+     * - 노란색이 있다는 정도만 보이도록 alpha를 낮게 준다.
+     * - 기존 PDF 양식의 선/글자를 완전히 가리지 않도록 투명도를 적용한다.
+     *
+     * 주의:
+     * - 이 함수는 PDF page content에 직접 그린다.
+     * - 같은 위치에 여러 번 저장하면 색이 누적될 수 있으므로,
+     *   보통 "서명된 sign" 저장 직전에만 호출하는 것이 안전하다.
+     */
+    private static void drawSignFieldBackground(
+            PDDocument document,
+            PDPage page,
+            RectF pdfRect
+    ) throws IOException {
+
+        if (document == null || page == null || pdfRect == null) return;
+
+        RectF r = normalizeRect(pdfRect);
+
+        /*
+         * normalizeRect() 결과는 PDF 좌표계 기준으로
+         * top >= bottom 형태가 될 수 있다.
+         *
+         * Android RectF.height()는 bottom - top이므로 사용하지 않고
+         * 직접 width / height를 계산한다.
+         */
+        float left = Math.min(r.left, r.right);
+        float right = Math.max(r.left, r.right);
+        float top = Math.max(r.top, r.bottom);
+        float bottom = Math.min(r.top, r.bottom);
+
+        float width = right - left;
+        float height = top - bottom;
+
+        if (width <= 0f || height <= 0f) return;
+
+        PDPageContentStream cs = null;
+
+        try {
+            cs = new PDPageContentStream(
+                    document,
+                    page,
+                    PDPageContentStream.AppendMode.APPEND,
+                    true,
+                    true
+            );
+
+            /*
+             * 기존 PDF 내용이 완전히 가려지지 않도록 투명도 적용.
+             */
+            PDResources resources = page.getResources();
+            if (resources == null) {
+                resources = new PDResources();
+                page.setResources(resources);
+            }
+
+            PDExtendedGraphicsState gs = new PDExtendedGraphicsState();
+
+            /*
+             * 0.0f = 완전 투명
+             * 1.0f = 완전 불투명
+             *
+             * 0.12f ~ 0.18f 정도가 "노란색이 있구나" 수준이다.
+             */
+            gs.setNonStrokingAlphaConstant(0.15f);
+
+            cs.saveGraphicsState();
+            cs.setGraphicsStateParameters(gs);
+
+            /*
+             * 연한 노란색.
+             * alpha는 위의 ExtGState에서 처리한다.
+             */
+            cs.setNonStrokingColor(255, 235, 80);
+
+            cs.addRect(left, bottom, width, height);
+            cs.fill();
+
+            cs.restoreGraphicsState();
+
+        } finally {
+            if (cs != null) {
+                try {
+                    cs.close();
+                } catch (Exception ignore) {
+                }
+            }
+        }
+    }
+
+
+
+    /**
      * Android Path를 PDF path 명령으로 변환한다.
      *
      * Android Path를 직접 PDF에 넣는 API가 없으므로 PathMeasure로 샘플링한다.
@@ -883,6 +1301,7 @@ public class PdfInkPdfSaver {
         obj.put("width", w);
         obj.put("height", h);
         obj.put("fontSize", field.fontSizePdf <= 0 ? DEFAULT_FONT_SIZE : field.fontSizePdf);
+        obj.put("autoFit", field.autoFit);
 
         obj.put("editable", editable);
         obj.put("pendingSign", editable && "sign".equalsIgnoreCase(safe(field.type)));

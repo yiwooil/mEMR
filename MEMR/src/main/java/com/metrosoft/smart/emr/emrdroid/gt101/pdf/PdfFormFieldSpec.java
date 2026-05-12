@@ -11,6 +11,7 @@ public class PdfFormFieldSpec {
     public String defaultValue;
     public int fontSize = 10;
     public String typeName;
+    public boolean autoFit = false;
     public String value;
 
     public String groupName; // 2026.05.06 WOOIL - radio 버튼용

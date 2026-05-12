@@ -300,6 +300,7 @@ public class PdfFormFieldReader {
             if ("".equals(safe(field.type))) {
                 field.type = "label";
             }
+            field.autoFit = obj.optBoolean("autoFit", false);
 
             field.groupName = obj.optString("groupName", "");
             field.value = obj.optString("value", "");
