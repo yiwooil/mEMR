@@ -25,7 +25,6 @@ import java.util.Map;
  *
  * 1. ConsentForm
  *    → PdfFormFieldSpec 목록 생성
- *    → valuesToFill 생성
  *    → PdfFormEditor.prepareAndFillPdf() 호출
  *
  * 2. PdfFormEditor
@@ -69,7 +68,6 @@ public class PdfFormEditor {
      * @param srcPdf 원본 PDF
      * @param outPdf metadata가 추가된 출력 PDF
      * @param fieldsToCreate CCF 기반 field 목록
-     * @param valuesToFill 초기값 map
      * @param listener 디버그 콜백
      */
     public static void prepareAndFillPdf(
@@ -77,7 +75,6 @@ public class PdfFormEditor {
             File srcPdf,
             File outPdf,
             List<PdfFormFieldSpec> fieldsToCreate,
-            Map<String, String> valuesToFill,
             PdfDebugListener listener
     ) throws Exception {
 
@@ -108,26 +105,6 @@ public class PdfFormEditor {
                         continue;
                     }
 
-                    /*
-                     * field 초기값 결정.
-                     *
-                     * 우선순위:
-                     * 1. valuesToFill[fieldName]
-                     * 2. valuesToFill[ccfField]
-                     * 3. spec.value
-                     * 4. spec.defaultValue
-                     * 5. ""
-                     */
-                    String value = getSpecValue(spec);
-
-                    if (valuesToFill != null) {
-                        if (spec.fieldName != null && valuesToFill.containsKey(spec.fieldName)) {
-                            value = valuesToFill.get(spec.fieldName);
-                        } else if (spec.ccfField != null && valuesToFill.containsKey(spec.ccfField)) {
-                            value = valuesToFill.get(spec.ccfField);
-                        }
-                    }
-
                     String typeName = nvl(spec.typeName).trim();
                     if ("".equals(typeName)) {
                         typeName = "label";
@@ -139,14 +116,13 @@ public class PdfFormEditor {
                      * 이 단계에서는 PDF 본문에 값을 그리지 않는다.
                      * 그래야 PdfInkSignView에서 overlay로 그릴 때 이중 출력되지 않는다.
                      */
-                    metadataArray.put(toMetadataJson(spec, typeName, value, true));
+                    metadataArray.put(toMetadataJson(spec, typeName, true));
 
                     if (listener != null) {
                         listener.onError("metadata-mode field"
                                 + ", name=" + nvl(spec.fieldName)
                                 + ", ccfField=" + nvl(spec.ccfField)
-                                + ", type=" + typeName
-                                + ", value=" + nvl(value));
+                                + ", type=" + typeName);
                     }
                 }
             }
@@ -209,7 +185,6 @@ public class PdfFormEditor {
     private static JSONObject toMetadataJson(
             PdfFormFieldSpec spec,
             String typeName,
-            String value,
             boolean editable
     ) throws Exception {
 
@@ -254,13 +229,6 @@ public class PdfFormEditor {
         obj.put("groupName", nvl(spec.groupName));
 
         /*
-         * 현재 field 값.
-         * PdfInkSignView에서 overlay로 표시하고,
-         * 사용자가 수정하면 field.value가 변경된다.
-         */
-        obj.put("value", nvl(value));
-
-        /*
          * 좌상단 기준 field 위치.
          */
         obj.put("x", spec.x);
@@ -288,25 +256,6 @@ public class PdfFormEditor {
         obj.put("pendingSign", "sign".equalsIgnoreCase(nvl(typeName)));
 
         return obj;
-    }
-
-    /**
-     * spec의 기본값을 안전하게 가져온다.
-     *
-     * 기존 코드와 호환하기 위해 defaultValue와 value를 모두 고려한다.
-     */
-    private static String getSpecValue(PdfFormFieldSpec spec) {
-        if (spec == null) return "";
-
-        if (spec.value != null) {
-            return spec.value;
-        }
-
-        if (spec.defaultValue != null) {
-            return spec.defaultValue;
-        }
-
-        return "";
     }
 
     private static String nvl(String s) {

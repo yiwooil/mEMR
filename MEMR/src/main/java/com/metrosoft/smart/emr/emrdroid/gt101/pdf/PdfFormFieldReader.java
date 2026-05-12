@@ -16,6 +16,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * PDF 표시/편집용 필드 정보를 읽는 클래스.
@@ -70,6 +71,7 @@ public class PdfFormFieldReader {
      * @param context Android Context
      * @param pdfFile 읽을 PDF 파일
      * @param pageIndex 현재 페이지 index, 0-based
+     * @param values 필드 값
      * @param debugTextList 디버그 메시지 출력용 리스트. null 가능
      * @return PdfInkSignView에서 그릴 PdfRenderedFormField 목록
      */
@@ -77,6 +79,7 @@ public class PdfFormFieldReader {
             Context context,
             File pdfFile,
             int pageIndex,
+            Map<String, String> values,
             List<String> debugTextList
     ) throws Exception {
 
@@ -109,6 +112,7 @@ public class PdfFormFieldReader {
             result.addAll(readOverlayMetadataFields(
                     document,
                     pageIndex,
+                    values,
                     debugTextList
             ));
 
@@ -168,6 +172,7 @@ public class PdfFormFieldReader {
     private static List<PdfRenderedFormField> readOverlayMetadataFields(
             PDDocument document,
             int pageIndex,
+            Map<String, String> values,
             List<String> debugTextList
     ) {
 
@@ -202,6 +207,7 @@ public class PdfFormFieldReader {
                                 document,
                                 obj,
                                 pageIndex,
+                                values,
                                 debugTextList
                         );
 
@@ -229,6 +235,7 @@ public class PdfFormFieldReader {
             PDDocument document,
             JSONObject obj,
             int targetPageIndex,
+            Map<String, String> values,
             List<String> debugTextList
     ) {
 
@@ -282,10 +289,6 @@ public class PdfFormFieldReader {
              */
             field.ccfField = obj.optString("ccfField", "");
 
-            if ("".equals(safe(field.ccfField))) {
-                field.ccfField = field.name;
-            }
-
             /*
              * type:
              * - text
@@ -303,7 +306,23 @@ public class PdfFormFieldReader {
             field.autoFit = obj.optBoolean("autoFit", false);
 
             field.groupName = obj.optString("groupName", "");
-            field.value = obj.optString("value", "");
+
+
+            /*
+             * 값은 metadata가 아니라 valuesToFill에서 가져온다.
+             *
+             * 우선순위:
+             * 1. fieldName으로 찾기
+             * 2. ccfField로 찾기
+             * 3. 없으면 빈 값
+             */
+            String value = "";
+            if (values != null) {
+                if (field.ccfField != null && values.containsKey(field.ccfField)) {
+                    value = values.get(field.ccfField);
+                }
+            }
+            field.value = value == null ? "" : value;
 
             field.fontSizePdf =
                     (float) obj.optDouble("fontSize", DEFAULT_FONT_SIZE);

@@ -682,7 +682,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         m_mapPic = null; // 촬영용이미지보관용
         m_mapMP4 = null; // 녹음파일보관용
 
-        //getCertificatePaper();
         if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
             getPreSavedCertificatePaper();
         } else {
@@ -1942,8 +1941,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                         try {
                             if ("".equalsIgnoreCase(mErrMsg)) {
                                 if (isPdf) {
-                                    // pdf문서 form-field에 값을 뿌리는 함수
-                                    //applyPdfFormFieldsToDownloadedPages();
                                     afterGetCertificatePaperPdf();
                                 } else {
                                     for (int i = 0; i < mPageCount; i++) {
@@ -2925,17 +2922,21 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 pdfView.setVisibility(View.GONE);
 
                 if (i < mPdfFilePathList.size()) {
+                    Map<String, String> values = buildPdfFieldValues(i);
                     File pdfFile = new File(mPdfFilePathList.get(i));
-                    pdfView.openPdf(pdfFile, 0, userId);
+                    pdfView.openPdf(pdfFile, 0, values, userId);
                 }
             }
 
             if (mPdfViewList.size() > 0) {
                 mPdfViewList.get(0).setVisibility(View.VISIBLE);
+                setPdfPageRadioToFirstPage();
             }
 
-            mRadioPen.setChecked(true);
+            //mRadioPen.setChecked(true);
+            mRadioEdit.setChecked(true); // 기본 편집 모드
             applyCurrentDrawModeToPdfViews();
+
         } catch (Exception ex) {
             showSimpleDialog(ex.getMessage());
         }
@@ -3024,14 +3025,6 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 values.put(pdfField, value);
             }
 
-            // 의사명 override
-            if (mApplyDrnm != null) {
-                String drnm = nvl(mApplyDrnm.getText().toString()).trim();
-                if (!"".equals(drnm)) {
-                    values.put("drnm", drnm);
-                }
-            }
-
         } catch (Exception e) {
             Log.e("EmrDroid", "buildPdfFieldValues error: " + e.getMessage());
         }
@@ -3058,44 +3051,23 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-3)(pdf)");
             List<PdfFormFieldSpec> fields = buildPdfFormFieldSpecList(i);
 
-            // pdf문서에 출력할 자료의 값을 변환한다.(ccfValueXml -> Map)
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-4)(pdf)");
-            Map<String, String> values = buildPdfFieldValues(i);
-
-            // 데이터에이스에서 읽은 값과 사용자가 화면에서 수정한 값을 한 번에 처리하기 위한 변수
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-5)(pdf)");
-            Map<String, String> valuesToFill = new HashMap<String, String>();
-
-            // 기존 값(데이터베이스에서 읽은 값)
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-6)(pdf)");
-            valuesToFill.putAll(values);
-
-            // 사용자가 화면에서 수정한 값 우선 반영
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-7)(pdf)");
-            valuesToFill.putAll(mPdfViewList.get(i).getEditedFieldValues());
-
-            // 값이 하나도 없으면 건너뜀
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-8)(pdf)");
-            if (values == null || values.size() == 0) continue;
-
             // 값을 반영한 pdf 파일을 만든다.
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-9)(pdf)");
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-4)(pdf)");
             File outPdf = new File(srcPdf.getParent(), "filled_" + srcPdf.getName());
 
             // 모든 값을 반영하여 pdf 파일을 저장한후. 실제로 이 파일을 사용한다.
-            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-10)(pdf)");
-            final String msgmsg = (i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-10)(pdf)";
+            setDialogMessage((i + "/" + pageCnt) + "페이지 문서 준비 중입니다...(1-5)(pdf)");
+
             PdfFormEditor.prepareAndFillPdf(
                     this,
                     srcPdf, // 원본 PDF
                     outPdf, // 결과 PDF
                     fields, // 생성할 필드
-                    valuesToFill, // 필드명과 값
                     new PdfDebugListener() {
                         @Override
                         public void onError(String msg) {
                             //showSimpleDialogThread(msg);
-                            setDialogMessage(msgmsg + msg);
+                            setDialogMessage(msg);
                         }
                     }
             );
@@ -3467,6 +3439,22 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         });
 
         dialog.show();
+    }
+
+    private void setPdfPageRadioToFirstPage() {
+        try {
+            if (mPageGroup != null && mRadioPage1 != null) {
+                mPageGroup.check(mRadioPage1.getId());
+                return;
+            }
+
+            if (mRadioPage1 != null) {
+                mRadioPage1.setChecked(true);
+            }
+
+        } catch (Exception ex) {
+            Log.d("EmrDroid", "setPdfPageRadioToFirstPage error=" + ex.getMessage());
+        }
     }
 
 
