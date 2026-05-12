@@ -684,7 +684,7 @@ public class EmrScanView extends MyActivity implements OnCheckedChangeListener {
             // 이전 페이지 PDF의 sign_image overlay가 다음 페이지에 남지 않도록 초기화한다.
             mPdfView.clearAllOverlays();
 
-            mPdfView.openPdf(pdfFile, 0, "");
+            mPdfView.openPdf(pdfFile, 0,null, "");
         } catch (Exception e) {
             showSimpleDialog("PDF 열기 오류: " + e.getMessage());
         }

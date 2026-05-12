@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
 public class PdfInkSignView extends AppCompatImageView {
@@ -131,6 +132,8 @@ public class PdfInkSignView extends AppCompatImageView {
     private float mDownX = 0f;
     private float mDownY = 0f;
     private boolean mSingleTapCandidate = false;
+
+    private Map<String, String> mValues;
 
     // 사용자가 수정한 값. 저장은 실제 PDF fieldName 기준으로 한다.
     private final HashMap<String, String> mEditedFieldValues =
@@ -336,14 +339,17 @@ public class PdfInkSignView extends AppCompatImageView {
         invalidate();
     }
 
-    public void openPdf(File pdfFile, int pageIndex, String userid) throws IOException {
-        mUserid = userid;
+    public void openPdf(File pdfFile, int pageIndex, Map<String, String> values, String userid) throws IOException {
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             throw new IOException("PdfRenderer는 Android 5.0 이상에서만 지원됩니다.");
         }
 
         closePdf();
+        clearAllOverlays();
+
+        mUserid = userid;
+        mValues = values;
 
         pfd = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY);
         pdfRenderer = new PdfRenderer(pfd);
@@ -432,6 +438,7 @@ public class PdfInkSignView extends AppCompatImageView {
                                 getContext(),
                                 mCurrentPdfFile,
                                 currentPageIndex,
+                                mValues,
                                 mDebugTextList
                         );
                 setRenderedFormFields(fields);
@@ -1174,7 +1181,7 @@ public class PdfInkSignView extends AppCompatImageView {
     }
 
     public void closePdf() {
-        saveCurrentPageOverlay();
+        //saveCurrentPageOverlay();
 
         try {
             if (currentPage != null) currentPage.close();
@@ -2936,6 +2943,7 @@ public class PdfInkSignView extends AppCompatImageView {
          */
         public int editLines;
     }
+
 
 
 }
