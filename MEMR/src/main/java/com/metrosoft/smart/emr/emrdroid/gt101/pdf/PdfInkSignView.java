@@ -1290,12 +1290,12 @@ public class PdfInkSignView extends AppCompatImageView {
         Paint editablePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         editablePaint.setStyle(Paint.Style.STROKE);
         editablePaint.setStrokeWidth(2f);
-        editablePaint.setColor(Color.GREEN);
+        editablePaint.setColor(Color.argb(255, 255, 235, 80));
 
         Paint editingPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         editingPaint.setStyle(Paint.Style.STROKE);
         editingPaint.setStrokeWidth(2f);
-        editingPaint.setColor(Color.BLUE);
+        editingPaint.setColor(Color.GREEN);
 
         Paint shapePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         shapePaint.setColor(field.colorArgb);
