@@ -17,7 +17,7 @@ public class PdfSignOverlay {
     public boolean visible = false;
 
     // pen 정보
-    public float strokeWidth = 3f;
+    public float strokeWidth = 5f;
     public int strokeColor = 0xFF000000;
 
     // 어떤 필드인지
