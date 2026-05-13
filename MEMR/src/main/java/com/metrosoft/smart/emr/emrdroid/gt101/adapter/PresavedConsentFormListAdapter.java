@@ -19,10 +19,47 @@ import java.util.HashMap;
 public class PresavedConsentFormListAdapter extends BaseAdapter {
     private Context context;
     private ArrayList<HashMap<String,Object>> arrayList;
+    private ArrayList<HashMap<String,Object>> originalList;
 
     public PresavedConsentFormListAdapter(Context context, ArrayList<HashMap<String,Object>> arrayList) {
         this.context = context;
-        this.arrayList = arrayList;
+        this.originalList = arrayList;
+        this.arrayList = new ArrayList<HashMap<String,Object>>();
+        copyDisplayData();
+    }
+
+    private void copyDisplayData() {
+        // arrayList를 비우고 hidden이 y가 아닌 자료를 다시 담는다.
+        // 그러면 나머지는 알아서 동작한다.
+        this.arrayList.clear();
+        for (int i = 0; i < this.originalList.size(); i++) {
+            HashMap<String,Object> map = this.originalList.get(i);
+            String hidden = (String)map.get("hidden");
+            if (!"y".equalsIgnoreCase(hidden)) {
+                this.arrayList.add(map);
+            }
+        }
+        notifyDataSetChanged();
+    }
+
+    public void toggleDisplayData(String ccfName) {
+        // 같은 ccfName에 hidden을 설정한다.
+        for (int i = 0; i < this.originalList.size(); i++) {
+            HashMap<String,Object> map = this.originalList.get(i);
+            String isdateline = (String) map.get("isdateline");
+            if ("1".equalsIgnoreCase(isdateline)) continue;
+
+            String mapCcfName = (String)map.get("ccf_name");
+            if(ccfName.equalsIgnoreCase(mapCcfName)) {
+                String hidden = (String)map.get("hidden");
+                if ("y".equalsIgnoreCase(hidden)) {
+                    map.put("hidden", "");
+                } else {
+                    map.put("hidden", "y");
+                }
+            }
+        }
+        copyDisplayData();
     }
 
     @Override

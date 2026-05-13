@@ -99,6 +99,11 @@ public class EmrSettingsUtil {
 		return context.getSharedPreferences("emrdroid", Context.MODE_PRIVATE).getString("nrChartAiYn", "").equalsIgnoreCase("Y");
 	}
 
+	// 로그인 정보 - 임시저장동의서 리스트에서 동의서별로 접었다 폁쳤다 할지 여부
+	public static boolean getPresavedConsentFormListCollapseYn(Context context) {
+		return context.getSharedPreferences("emrdroid", Context.MODE_PRIVATE).getString("presavedConsentFormListCollapseYn", "").equalsIgnoreCase("Y");
+	}
+
 	// -----------------------------------------------------------------------------------------------------------------------
 
 	// 재원환자리스트 - 조회병동 저장

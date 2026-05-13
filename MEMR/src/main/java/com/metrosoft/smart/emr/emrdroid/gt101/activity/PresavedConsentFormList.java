@@ -67,6 +67,7 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
     private String mConditionDeptCode, mConditionDeptCodeName;
     private String mConditionPdridCode, mConditionPdridCodeName;
 
+    private boolean mCollapseYn = false; // 임시저장동의서 "동의서+환자명"으로 조회할 때 동의서 그룹만 보이는지 여부
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -97,6 +98,8 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
 
         mSortOrder = "0";
         mSortOrder = EmrSettingsUtil.getPresavedConsentFormListSortOrder(getBaseContext(), "0");
+
+        mCollapseYn = EmrSettingsUtil.getPresavedConsentFormListCollapseYn(this);
 
         setListener();
 
@@ -152,6 +155,19 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 HashMap<String, Object> map = (HashMap<String, Object>) (parent.getAdapter().getItem(position));
+                String isdateline = (String) map.get("isdateline");
+
+                // 정렬옵션이 "동의서명+환자명"이고,
+                // 펼치기 옵션이 ON이고,
+                // 클릭한 행이 동의서명 헤더이면 접기/펼치기 처리
+                if ("1".equals(isdateline)) {
+                    if ("2".equals(mSortOrder)) {
+                        String ccfName = (String) map.get("exdt"); // ccfName을 exdt키에 넣는다.
+                        ((PresavedConsentFormListAdapter) mConsentFormList.getAdapter()).toggleDisplayData(ccfName);
+                    }
+                    return;
+                }
+
                 // 2026.04.01 WOOIL - 한 임시저장동의서를 다른 단말기에서 시차를 추고 처리한 경우가 있음
                 //                    사인을 받으러 가기 전에 삭제여부를 확인하자...
                 callConsentForm(map);
@@ -305,6 +321,7 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
                                 HashMap<String, Object> map = new HashMap<String, Object>();
                                 map.put("exdt", exdt);
                                 map.put("isdateline", "1");
+                                map.put("hidden", "");
                                 mylist.add(map);
                                 bkExdt = exdt;
                             }
@@ -316,6 +333,7 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
                                 HashMap<String, Object> map = new HashMap<String, Object>();
                                 map.put("exdt", ccfnm);
                                 map.put("isdateline", "1");
+                                map.put("hidden", "");
                                 mylist.add(map);
                                 bkCcfnm = ccfnm;
                             }
@@ -368,6 +386,12 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
                         map.put("sub_page_list", strSubPageList);
                         map.put("pre_saved_bdiv", rs.getString(i, "pre_saved_bdiv"));
                         map.put("isdateline", "");
+
+                        if ("2".equals(mSortOrder) && mCollapseYn) {
+                            map.put("hidden", "y"); // 기본 접힌 상태
+                        } else {
+                            map.put("hidden", "");
+                        }
                         //
                         mylist.add(map);
                     }
@@ -375,23 +399,6 @@ public class PresavedConsentFormList extends MyActivity implements ListView.OnSc
                 PresavedConsentFormListAdapter adapter = new PresavedConsentFormListAdapter(this, mylist);
                 mConsentFormList.setAdapter(adapter);
 
-                /*
-                SimpleAdapter adapter = new SimpleAdapter(this, mylist, R.layout.presaved_consent_form_list_row,
-                        new String[]{"image", "pnm", "psexage", "dptcd", "ward", "pdrnm", "qfycdnm", "disp_bededt_bedodt", "ccf_name", "pid", "ccf_exdt_seq"},
-                        new int[]{R.id.pscf_image
-                                , R.id.pscf_pnm
-                                , R.id.pscf_psexage
-                                , R.id.pscf_dptcd
-                                , R.id.pscf_ward
-                                , R.id.pscf_pdrnm
-                                , R.id.pscf_qfycdnm
-                                , R.id.pscf_disp_bededt_bedodt
-                                , R.id.pscf_ccf_name
-                                , R.id.pscf_pid
-                                , R.id.pscf_exdt_seq
-                        });
-                mConsentFormList.setAdapter(adapter);
-                */
             }
             // 2022.03.23 WOOIL - 검색용 키보드가 기본으로 올라오지 않게
             hideKeyboard();

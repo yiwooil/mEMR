@@ -308,6 +308,12 @@ public class Login extends MyActivity {
                     ed.putString("nrChartAiYn", rsHelper.getString(0, "nr_chart_ai_yn"));
                 } catch (JSONException e) {
                 }
+                // 임시저장동의서 리스트 조회시 동의서 별로 기본으로 접힐지 여부
+                try {
+                    ed.putString("presavedConsentFormListCollapseYn", "");
+                    ed.putString("presavedConsentFormListCollapseYn", rsHelper.getString(0, "presaved_consent_form_list_collapse_yn"));
+                } catch (JSONException e) {
+                }
                 ed.commit();
             }
         } catch (JSONException e) {
