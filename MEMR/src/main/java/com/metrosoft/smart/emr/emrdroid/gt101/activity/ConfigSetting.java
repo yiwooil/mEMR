@@ -93,7 +93,8 @@ public class ConfigSetting extends PreferenceActivity implements OnPreferenceCli
             startActivity(intent);
         } else if (key.equals("install")) {
             Intent intent = new Intent(Intent.ACTION_VIEW);
-            Uri uri = Uri.parse("http://www.metrosoft.co.kr/MEMR/SETUP/MEMR.apk");
+            String apkUrl = "http://www.metrosoft.co.kr/MEMR/SETUP/MEMR.apk";
+            Uri uri = Uri.parse(apkUrl);
             intent.setData(uri);
             startActivity(intent);
         }

@@ -43,21 +43,33 @@
 	<LinearLayout 
 		android:orientation="horizontal"
 		android:layout_width="fill_parent" 
-		android:layout_height="fill_parent" >
+		android:layout_height="wrap_content" >
 		<Button
 			android:id="@+id/okButton"
-			android:layout_width="wrap_content"
+			android:layout_width="0dip"
 			android:layout_height="wrap_content"
 			android:layout_gravity="center_vertical|center_horizontal"
 			android:layout_weight="2"
 			android:text="@string/ok"/>
 		<Button
 			android:id="@+id/cancelButton"
-			android:layout_width="wrap_content"
+			android:layout_width="0dip"
 			android:layout_height="wrap_content"
 			android:layout_gravity="center_vertical|center_horizontal"
 			android:layout_weight="1" 
 			android:layout_marginRight="10dip"
 			android:text="@string/cancel"/>
 	</LinearLayout>
+	<!-- 버전 정보 -->
+	<TextView
+		android:id="@+id/versionTextView"
+		android:text="0.0.0"
+		android:textSize="12sp"
+		android:textColor="#666666"
+		android:gravity="right"
+		android:layout_width="fill_parent"
+		android:layout_height="20dip"
+		android:paddingRight="20dip"
+		android:layout_marginTop="10dip"
+		android:layout_marginRight="10dip" />
 </LinearLayout>	
