@@ -262,7 +262,7 @@ public class InPatientList extends MyActivity implements ListView.OnItemClickLis
             mOutPdridButton.setText(mOutPdridCodeName);
             mOutExdtYear = savedInstanceState.getInt("outExdtYear");
             mOutExdtMonth = savedInstanceState.getInt("outExdtMonth");
-            mOutExdtDay = savedInstanceState.getInt("outExdDay");
+            mOutExdtDay = savedInstanceState.getInt("outExdtDay");
             displayOutExdt();
             // 2021.09.30 WOOIL - 환자검색용
             mSearchExdtYear = savedInstanceState.getInt("searchExdtYear");

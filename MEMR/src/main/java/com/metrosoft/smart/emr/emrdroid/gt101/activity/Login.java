@@ -4,6 +4,8 @@ import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -16,6 +18,7 @@ import android.widget.ImageView;
 import android.widget.ImageView.ScaleType;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.metrosoft.smart.emr.emrdroid.gt101.R;
@@ -50,6 +53,7 @@ public class Login extends MyActivity {
 
     private LinearLayout mLayout;
     private EditText mLoginUserId;
+    private TextView mVersionTextView;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -63,6 +67,20 @@ public class Login extends MyActivity {
         imageLogo.setScaleType(ScaleType.FIT_XY);
 
         mLayout = (LinearLayout) View.inflate(Login.this, R.layout.login_dialog, null);
+
+        // 앱 버전 정보 표시
+        mVersionTextView = (TextView) mLayout.findViewById(R.id.versionTextView);
+        if (mVersionTextView != null) {
+            mVersionTextView.setText(getAppVersionName());
+            // 버전 정보를 길게 누르면 APK 다운로드 URL 호출
+            mVersionTextView.setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    openApkDownloadUrl();
+                    return true;
+                }
+            });
+        }
 
         // 로그인 다이얼로그
         /*
@@ -410,4 +428,33 @@ public class Login extends MyActivity {
 
     }
 
+    // 앱의 실제 versionName을 가져온다.
+    private String getAppVersionName() {
+        try {
+            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+
+            if (packageInfo.versionName == null || packageInfo.versionName.length() == 0) {
+                return "0.0.0";
+            }
+
+            return packageInfo.versionName;
+
+        } catch (Exception e) {
+            return "0.0.0";
+        }
+    }
+
+    // APK 다운로드 URL 호출
+    private void openApkDownloadUrl() {
+        //일단 막는다.
+        //try {
+        //    Intent intent = new Intent(Intent.ACTION_VIEW);
+        //    String apkUrl = "http://www.metrosoft.co.kr/MEMR/SETUP/MEMR.apk";
+        //    Uri uri = Uri.parse(apkUrl);
+        //    intent.setData(uri);
+        //    startActivity(intent);
+        //} catch (Exception e) {
+        //    showSimpleDialog(e.getMessage());
+        //}
+    }
 }
