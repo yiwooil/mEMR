@@ -3171,7 +3171,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 spec.height = Utils.toFloat(ccfH) > 0 ? Utils.toFloat(ccfH) : 40;
 
                 // 스타일
-                spec.fontSize = 10;
+                spec.fontSize = 15;
 
                 // 타입
                 if ("".equals(ccfTypeName)) {

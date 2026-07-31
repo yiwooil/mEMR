@@ -76,7 +76,8 @@ public class PdfInkPdfSaver {
     private static final String FONT_ASSET_PATH = "fonts/NotoSansKR-Regular.ttf";
 
     private static final float DEFAULT_FONT_SIZE = 10f;
-    private static final float PDF_TEXT_FONT_SCALE = 0.95f;
+    //private static final float PDF_TEXT_FONT_SCALE = 0.95f;
+    private static final float PDF_TEXT_FONT_SCALE = 1.0f;
 
     /**
      * 전체 페이지 저장.
