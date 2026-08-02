@@ -773,9 +773,12 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
         // 2026.02.04 WOOIL - 임시저장동의서(실 저장동의서 포함)를 다시 받는 것이면 임시저장 동의서의 저장일이 기본으로 되게0
         // 2026.03.09 WOOIL - 허리나은병원은 항상 현재일자로 설정.
+        // 2026.07.28 WOOIL - 진주바른은병원 항상 현재일자로 설정.
         String hospitalId = getHospitalId();
-        if("0133".equalsIgnoreCase(hospitalId)==true){
+        if("0133".equalsIgnoreCase(hospitalId)==true) {
             // 2026.03.09 WOOIL - 허리나은병원
+        }else if("0028".equalsIgnoreCase(hospitalId)==true){
+            // 2026.07.28 WOOIL - 진주바른은병원
         }else {
             if ("Y".equalsIgnoreCase(mPreSaved) || "Y".equalsIgnoreCase(mReSaveYn)) {
                 setApplyExdt(mExdt);
@@ -3168,7 +3171,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
                 spec.height = Utils.toFloat(ccfH) > 0 ? Utils.toFloat(ccfH) : 40;
 
                 // 스타일
-                spec.fontSize = 10;
+                spec.fontSize = 15;
 
                 // 타입
                 if ("".equals(ccfTypeName)) {
