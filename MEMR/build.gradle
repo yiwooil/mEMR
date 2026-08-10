@@ -2,13 +2,13 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "com.metrosoft.smart.emr.emrdroid.gt101"
-    compileSdkVersion 35
+    compileSdkVersion 36
     buildToolsVersion "35.0.0"
 
     defaultConfig {
         applicationId "com.metrosoft.smart.emr.emrdroid.gt101"
         minSdkVersion 14
-        targetSdkVersion 35
+        targetSdkVersion 36
         multiDexEnabled true // 2026.04.14 WOOIL - 추가
     }
 
