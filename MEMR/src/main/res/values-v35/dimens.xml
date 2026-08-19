@@ -3,7 +3,7 @@
 
     <!-- in Folder values, For Phones -->
 
-    <dimen name="title_bar_height">90dip</dimen> <!-- 타이틀 바 높이. --> <!-- style.xml에서 사용함 -->
+    <dimen name="title_bar_height">70dip</dimen> <!-- 타이틀 바 높이. --> <!-- style.xml에서 사용함 -->
     <dimen name="camera_area_height">20dip</dimen> <!-- 화면 상단 정보가 가져지는 현상이 있어서 공간을 만든다 -->
     <dimen name="bottom_area_height">50dip</dimen> <!-- 화면 하단 정보가 가려지는 현상이 있어서 공간을 만든다 -->
 

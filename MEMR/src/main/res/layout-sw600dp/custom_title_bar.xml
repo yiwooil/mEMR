@@ -4,17 +4,47 @@
 	android:layout_height="fill_parent"
 	android:orientation="vertical"
 	>
-	<LinearLayout
-		android:id="@+id/top_bg_buttons"
-		android:layout_width="match_parent"
-		android:layout_height="0dip"
-		android:layout_weight="1"
-		android:orientation="vertical">
+	<!--
 	<RelativeLayout
-		android:id="@+id/top_bg_buttons2"
+        android:id="@+id/top_bg_layout"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/top_bg_layout_height"
+        android:orientation="horizontal"
+        android:background="@drawable/shape_top_bar_bg"
+        >
+        <ImageView 
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="false"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="9dip" 
+            android:src="@drawable/biz_ico"
+            android:scaleType="centerInside"
+            />
+        <ImageView 
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/temr_doctor"
+            android:scaleType="centerCrop"
+            />
+    </RelativeLayout>
+    -->
+	<!-- 구분선 -->
+	<!--
+    <LinearLayout
+        android:id="@+id/top_bg_divbar_layout"
+        android:layout_width="fill_parent"
+        android:layout_height="1dip"
+        android:orientation="vertical"
+        android:background="@android:color/white">
+    </LinearLayout>
+    -->
+	<RelativeLayout
+		android:id="@+id/top_bg_buttons"
 		android:layout_width="fill_parent"
-		android:layout_height="0dip"
-		android:layout_weight="1"
+		android:layout_height="fill_parent"
 		android:layout_marginTop="@dimen/camera_area_height"
 		android:orientation="horizontal"
 		>
@@ -49,16 +79,7 @@
 			android:gravity="center"
 			android:padding="8dip"
 			android:layout_toRightOf="@+id/backButtonCTB" />
-	</RelativeLayout>
 
-	<RelativeLayout
-		android:id="@+id/top_bg_buttons3"
-		android:layout_width="fill_parent"
-		android:layout_height="0dip"
-		android:layout_weight="1"
-		android:layout_marginTop="@dimen/camera_area_height"
-		android:orientation="horizontal"
-		>
 		<Button
 			android:id="@+id/queryButtonCTB"
 			android:text="@string/query"
@@ -202,5 +223,4 @@
 			android:layout_alignParentRight="true" />
 
 	</RelativeLayout>
-	</LinearLayout>
 </LinearLayout>
