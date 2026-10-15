@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@android:color/white" />
+
+    <!-- 환자 정보 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/pat_info_bar_height"
+        android:orientation="horizontal"
+        android:background="@drawable/shape_navi_bg">
+
+        <TextView
+            android:id="@+id/patientInfoTextView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:gravity="center_vertical"
+            android:textColor="@color/titleforeground"
+            android:textSize="@dimen/normal_text_size" />
+
+    </LinearLayout>
+
+    <!-- 동의서 칸을 누르면 목록에서 동의서를 선택한다. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="10dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginRight="8dp"
+            android:labelFor="@+id/rptnmTextView"
+            android:text="동의서"
+            android:maxLines="1"
+            android:textColor="@color/foreground"
+            android:textSize="@dimen/normal_text_size" />
+
+        <TextView
+            android:id="@+id/rptnmTextView"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minHeight="48dp"
+            android:padding="10dp"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:background="@drawable/shape_listview_row"
+            android:clickable="true"
+            android:focusable="true"
+            android:hint="동의서를 선택하세요"
+            android:textColor="@color/foreground"
+            android:textSize="@dimen/normal_text_size" />
+
+    </LinearLayout>
+
+    <!-- 동의서 선택 칸 아래의 남은 화면 전체에 촬영 사진을 표시한다. -->
+    <ImageView
+        android:id="@+id/consentPhotoImageView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@android:color/black"
+        android:contentDescription="촬영한 동의서"
+        android:scaleType="fitCenter" />
+
+</LinearLayout>

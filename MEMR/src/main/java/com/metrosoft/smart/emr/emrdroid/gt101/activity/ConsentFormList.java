@@ -160,6 +160,12 @@ public class ConsentFormList extends MyActivity {
             setButton1(true, "환자선택", BUTTON_TYPE_NONE);
         }
 
+        // 2026.10.14 WOOIL - 카메라로 촬영하여 동의서로 등록하는 화면으로 연결...
+        //                    환자 정보가 넘어온 경우만 버튼을 보이게 한다.
+        if ("".equalsIgnoreCase(mPid) == false) {
+            setButton2(true, "촬영하여 올리기", BUTTON_TYPE_NONE);
+        }
+
 //        String packageName = getPackageName();
 //        // 제목표시줄 밑에 있는 TEMR 로그를 TEMR 페키지만 보이도록 처리
 //        RelativeLayout topBgLayout = (RelativeLayout)findViewById(R.id.top_bg_layout);
@@ -198,6 +204,21 @@ public class ConsentFormList extends MyActivity {
         // 환자선택 창을 띄운다.
         Intent intent = new Intent(this, SelectPatientDialog.class);
         startActivityForResult(intent, REQ_SELECT_PATIENT);
+    }
+
+    @Override
+    public void onClickButton2(View v) {
+        // 2026.10.14 WOOIL - 카메라로 촬영하여 동의서로 등록하는 화면으로 연결...
+        Intent intent = new Intent(this, ConsentFormCamera.class);
+        intent.putExtra("pid",  mPid);
+        intent.putExtra("bededt", mBededt);
+        intent.putExtra("bdiv", mBdiv);
+        intent.putExtra("dptcd", mDptcd); // 2019.10.29 WOOIL - 진료과코드
+        intent.putExtra("bedodt", mBedodt); // 2021.08.10 WOOIL - 퇴원일(외래는 진료일시)
+        intent.putExtra("drid", mDrid); // 2024.06.21 WOOIL - 의사ID
+        intent.putExtra("qfycd", mQfycd); // 2024.06.24 WOOIL - 자격
+        intent.putExtra("patientinfo", mXmlPatientInfo);
+        startActivity(intent);
     }
 
     @Override
