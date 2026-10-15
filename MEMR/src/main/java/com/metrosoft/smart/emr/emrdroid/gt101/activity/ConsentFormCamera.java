@@ -28,6 +28,7 @@ import com.metrosoft.smart.emr.emrdroid.gt101.utils.Device;
 import com.metrosoft.smart.emr.emrdroid.gt101.utils.EmrSettingsUtil;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
@@ -76,9 +77,9 @@ public class ConsentFormCamera extends MyActivity {
         mXmlPatientInfo = getStringExtra(intent, "patientinfo");
 
         setQueryButton(false);
-        setButton1(true, "촬영", BUTTON_TYPE_NONE);
+        setButton1(true, "촬영", BUTTON_TYPE_CAMERA);
         setButton2(true, "저장", BUTTON_TYPE_SAVE);
-        setButton3(true, "지우기", BUTTON_TYPE_NONE);
+        setButton3(true, "지우기", BUTTON_TYPE_ERASER);
 
         TextView patientInfoTextView =
                 (TextView) findViewById(R.id.patientInfoTextView);
@@ -377,6 +378,11 @@ public class ConsentFormCamera extends MyActivity {
         } catch (IOException e) {
             // 방향 정보가 없는 사진은 원래 방향으로 표시한다.
         }
+        return rotatePhotoBitmap(bitmap, orientation);
+    }
+
+    private Bitmap rotatePhotoBitmap(Bitmap bitmap, int orientation) {
+        // EXIF 방향에 따라 사진을 회전 또는 반전하고 이전 비트맵을 해제한다.
         Matrix matrix = new Matrix();
         switch (orientation) {
             case ExifInterface.ORIENTATION_FLIP_HORIZONTAL:
@@ -416,6 +422,43 @@ public class ConsentFormCamera extends MyActivity {
         }
     }
 
+    private File createUploadJpg(String photoPath) throws IOException {
+        // 원본 해상도의 사진에 방향 보정을 적용하여 업로드용 JPG를 만든다.
+        Bitmap bitmap = null;
+        File uploadFile = null;
+        try {
+            int orientation = new ExifInterface(photoPath).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            bitmap = BitmapFactory.decodeFile(photoPath, options);
+            if (bitmap == null) {
+                throw new IOException("촬영한 사진을 읽을 수 없습니다.");
+            }
+            bitmap = rotatePhotoBitmap(bitmap, orientation);
+
+            uploadFile = File.createTempFile("consent_upload_", ".jpg", getCacheDir());
+            try (FileOutputStream output = new FileOutputStream(uploadFile)) {
+                if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 100, output)) {
+                    throw new IOException("방향을 보정한 사진을 저장하지 못했습니다.");
+                }
+                output.flush();
+            }
+
+            // 픽셀에 이미 보정했으므로 뷰어에서 다시 회전하지 않도록 한다.
+            ExifInterface exif = new ExifInterface(uploadFile.getAbsolutePath());
+            exif.setAttribute(ExifInterface.TAG_ORIENTATION,
+                    String.valueOf(ExifInterface.ORIENTATION_NORMAL));
+            exif.saveAttributes();
+            return uploadFile;
+        } catch (IOException | RuntimeException | OutOfMemoryError e) {
+            if (uploadFile != null) uploadFile.delete();
+            throw e;
+        } finally {
+            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+        }
+    }
+
     @Override
     public void onClickButton2(View v) {
         // 환자와 동의서, 촬영 파일을 확인하고 저장을 시작한다.
@@ -443,7 +486,7 @@ public class ConsentFormCamera extends MyActivity {
     }
 
     private void saveCameraImage() {
-        // 촬영 원본을 업로드한 뒤 선택한 동의서 코드로 파일 정보를 저장한다.
+        // 방향을 보정한 JPG를 업로드한 뒤 선택한 동의서 코드로 파일 정보를 저장한다.
         final String photoPath = mPhotoPath;
 
         setSaving(true);
@@ -453,10 +496,12 @@ public class ConsentFormCamera extends MyActivity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                // 서버 저장 시각과 파일명을 준비하고 업로드 및 DB 저장을 처리한다.
+                // 사진 방향을 보정하고 서버 파일 업로드 및 DB 저장을 처리한다.
                 String errorMessage = null;
+                File uploadPhotoFile = null;
 
                 try {
+                    uploadPhotoFile = createUploadJpg(photoPath);
                     ResultSetHelper saveInfo = getCameraSaveInfo("");
                     String sysdt = saveInfo.getString(0, "sysdt");
                     String systm = saveInfo.getString(0, "systm");
@@ -465,12 +510,12 @@ public class ConsentFormCamera extends MyActivity {
                     String uploadFileName = getCameraUploadFileName(sysdt, systm);
 
                     // 기존 ConsentForm과 같은 일반 동의서 이미지 저장 경로를 사용한다.
-                    // 촬영 원본 파일의 형식과 확장자는 JPEG(.jpg)이다.
+                    // 방향을 보정한 업로드 파일의 형식과 확장자는 JPEG(.jpg)이다.
                     String addParam = "file_type=jpg&pre_save=&hospital_id="
                             + getHangul(getHospitalId());
 
                     String response = uploadPngFile(
-                            photoPath, uploadFileName, addParam);
+                            uploadPhotoFile.getAbsolutePath(), uploadFileName, addParam);
 
                     if (response == null || !response.trim().startsWith("success")) {
                         throw new IOException(response == null
@@ -503,11 +548,16 @@ public class ConsentFormCamera extends MyActivity {
                     if (!response.startsWith("success")) {
                         throw new IOException(response);
                     }
+                } catch (OutOfMemoryError e) {
+                    errorMessage = "사진 방향을 보정할 메모리가 부족합니다. 다시 촬영해주세요.";
                 } catch (Exception e) {
                     errorMessage = e.getMessage();
                     if (errorMessage == null || errorMessage.length() == 0) {
                         errorMessage = "촬영동의서 저장 중 오류가 발생했습니다.";
                     }
+                } finally {
+                    // 업로드 결과와 관계없이 보정용 임시 파일은 정리하고 원본은 유지한다.
+                    if (uploadPhotoFile != null) uploadPhotoFile.delete();
                 }
 
                 final String resultMessage = errorMessage;
