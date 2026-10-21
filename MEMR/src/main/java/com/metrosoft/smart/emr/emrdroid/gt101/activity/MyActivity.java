@@ -49,6 +49,8 @@ public class MyActivity extends Activity {
     public final static int BUTTON_TYPE_OPTION = 2;
     public final static int BUTTON_TYPE_SIGN = 3;
     public final static int BUTTON_TYPE_SAVE = 4;
+    public final static int BUTTON_TYPE_CAMERA = 5;
+    public final static int BUTTON_TYPE_ERASER = 6;
 
     //private SharedPreferences mPrefs = null;
     private ServletHelper mServletHelper = new ServletHelper();
@@ -279,6 +281,12 @@ public class MyActivity extends Activity {
             button.setCompoundDrawablePadding(getResources().getDimensionPixelSize(R.dimen.button_drawable_padding));
         } else if (buttonType == BUTTON_TYPE_SAVE) {
             button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.save_button_icon, 0, 0, 0);
+            button.setCompoundDrawablePadding(getResources().getDimensionPixelSize(R.dimen.button_drawable_padding));
+        } else if (buttonType == BUTTON_TYPE_CAMERA) {
+            button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.camera_button_icon, 0, 0, 0);
+            button.setCompoundDrawablePadding(getResources().getDimensionPixelSize(R.dimen.button_drawable_padding));
+        } else if (buttonType == BUTTON_TYPE_ERASER) {
+            button.setCompoundDrawablesWithIntrinsicBounds(R.drawable.eraser_button_icon, 0, 0, 0);
             button.setCompoundDrawablePadding(getResources().getDimensionPixelSize(R.dimen.button_drawable_padding));
         }
     }

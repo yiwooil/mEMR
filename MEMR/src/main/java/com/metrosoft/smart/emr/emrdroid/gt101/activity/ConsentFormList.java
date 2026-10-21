@@ -163,7 +163,7 @@ public class ConsentFormList extends MyActivity {
         // 2026.10.14 WOOIL - 카메라로 촬영하여 동의서로 등록하는 화면으로 연결...
         //                    환자 정보가 넘어온 경우만 버튼을 보이게 한다.
         if ("".equalsIgnoreCase(mPid) == false) {
-            setButton2(true, "촬영하여 올리기", BUTTON_TYPE_NONE);
+            setButton2(true, "촬영하여 올리기", BUTTON_TYPE_CAMERA);
         }
 
 //        String packageName = getPackageName();
