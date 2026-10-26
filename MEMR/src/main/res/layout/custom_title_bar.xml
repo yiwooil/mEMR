@@ -9,13 +9,13 @@
 		android:layout_width="match_parent"
 		android:layout_height="0dip"
 		android:layout_weight="1"
+		android:layout_marginTop="@dimen/camera_area_height"
 		android:orientation="vertical">
 	<RelativeLayout
 		android:id="@+id/top_bg_buttons2"
 		android:layout_width="fill_parent"
 		android:layout_height="0dip"
 		android:layout_weight="1"
-		android:layout_marginTop="@dimen/camera_area_height"
 		android:orientation="horizontal"
 		>
 		<!-- 타이틀바의 높이는 style에 정의되어 있음. -->
@@ -56,7 +56,6 @@
 		android:layout_width="fill_parent"
 		android:layout_height="0dip"
 		android:layout_weight="1"
-		android:layout_marginTop="@dimen/camera_area_height"
 		android:orientation="horizontal"
 		>
 		<Button
