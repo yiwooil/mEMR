@@ -11,7 +11,7 @@
     <dimen name="small_small_text_size">10dip</dimen> <!-- 아주 작은 글자크기 -->
     <dimen name="button_min_width">50dip</dimen> <!-- 버튼의 최소 너비 -->
 
-    <dimen name="title_bar_height">50dip</dimen> <!-- 타이틀 바 높이 --> <!-- style.xml에서 사용함 -->
+    <dimen name="title_bar_height">70dip</dimen> <!-- 전화기용 타이틀 바: 35dip 높이의 두 줄 --> <!-- style.xml에서 사용함 -->
     <dimen name="camera_area_height">0dip</dimen> <!-- 화면 상단 정보가 가져지는 현상이 있어서 공간을 만든다 -->
     <dimen name="bottom_area_height">0dip</dimen> <!-- 화면 하단 정보가 가려지는 현상이 있어서 공간을 만든다 -->
     
@@ -19,8 +19,8 @@
     <dimen name="option_bar_height">35dip</dimen> <!-- 재원환자조회화면의 진료과,병동 선택하는 버튼이 있는 바의 높이 -->
     <dimen name="button_drawable_padding">3dip</dimen> <!-- 버튼의 올라가는 이미지의 padding값 -->
     <dimen name="ctb_title_margin_top">0dip</dimen> <!-- 타이틀바 테스트의 top margin 값(0->8) -->
-    <dimen name="ctb_button_margin_top">8dip</dimen> <!-- 타이틀바에 있는 버튼의 top margin 값(8->28) -->
-    <dimen name="ctb_button_margin_bottom">8dip</dimen> <!-- 타이틀바에 있는 버튼의 bottom margin 값 -->
+    <dimen name="ctb_button_margin_top">4dip</dimen> <!-- 조건 버튼 영역과 같은 상단 여백 -->
+    <dimen name="ctb_button_margin_bottom">0dip</dimen> <!-- 조건 버튼 영역과 같은 하단 여백 -->
     <dimen name="ctb_button_padding_left">11dip</dimen> <!-- 타이틀바에 있는 버튼의 left padding 값 -->
     <dimen name="ctb_button_padding_right">14dip</dimen> <!-- 타이틀바에 있는 버튼의 right padding 값 -->
 
