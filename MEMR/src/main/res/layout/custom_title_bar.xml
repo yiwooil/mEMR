@@ -14,8 +14,7 @@
 	<RelativeLayout
 		android:id="@+id/top_bg_buttons2"
 		android:layout_width="fill_parent"
-		android:layout_height="0dip"
-		android:layout_weight="1"
+		android:layout_height="@dimen/option_bar_height"
 		android:orientation="horizontal"
 		>
 		<!-- 타이틀바의 높이는 style에 정의되어 있음. -->
@@ -54,8 +53,7 @@
 	<RelativeLayout
 		android:id="@+id/top_bg_buttons3"
 		android:layout_width="fill_parent"
-		android:layout_height="0dip"
-		android:layout_weight="1"
+		android:layout_height="@dimen/option_bar_height"
 		android:orientation="horizontal"
 		>
 		<Button
