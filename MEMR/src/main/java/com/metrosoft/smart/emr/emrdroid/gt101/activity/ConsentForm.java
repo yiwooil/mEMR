@@ -44,6 +44,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -147,8 +148,10 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     //	private MyView mMyView;
     private ArrayList<MyView> mMyViewList = new ArrayList<MyView>();
     //	private ScaleImageView mSiView; // 확대축소용
-    private Button mRecordButton;
-    private Button mPicButton;
+    private ImageButton mRecordButton;
+    private TextView mRecordCountTextView;
+    private ImageButton mPicButton;
+    private TextView mPicCountTextView;
     private RadioGroup mPenGroup;
     private RadioButton mRadioPen;
     private RadioButton mRadioEraser;
@@ -262,8 +265,12 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
         mWebView.setWebViewClient(new CertificatePaperWebViewClient());
         // mWebView.setWebChromeClient(new CertificatePaperWebChromeClient());
         //
-        mRecordButton = (Button) findViewById(R.id.record_button);
-        mPicButton = (Button) findViewById(R.id.pic_button);
+        mRecordButton = (ImageButton) findViewById(R.id.record_button);
+        mRecordButton.setContentDescription("녹음");
+        mRecordCountTextView = (TextView) findViewById(R.id.record_count_text);
+        mPicButton = (ImageButton) findViewById(R.id.pic_button);
+        mPicButton.setContentDescription("촬영");
+        mPicCountTextView = (TextView) findViewById(R.id.pic_count_text);
         mPenGroup = (RadioGroup) findViewById(R.id.pen_group);
         mPenGroup.setOnCheckedChangeListener(this);
         mRadioPen = (RadioButton) findViewById(R.id.radio_pen);
@@ -1004,13 +1011,20 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
             @Override
             public void run() {
-                // TODO Auto-generated method stub
-                String dispText = text;
+                int count = 0;
                 if (m_mapMP4 != null) {
-                    int idx = m_mapMP4.size();
-                    dispText = text + "(" + idx + ")";
+                    count = m_mapMP4.size();
                 }
-                mRecordButton.setText(dispText);
+
+                if (count > 0) {
+                    // 마이크 아이콘은 가운데에 고정하고 우측 상단에 녹음 개수만 표시한다.
+                    mRecordCountTextView.setText(String.valueOf(count));
+                    mRecordButton.setContentDescription(text + ", 녹음 파일 " + count + "개");
+                } else {
+                    // 녹음 파일이 없으면 마이크 아이콘만 표시한다.
+                    mRecordCountTextView.setText("");
+                    mRecordButton.setContentDescription(text);
+                }
             }
 
         });
@@ -1021,13 +1035,20 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
 
             @Override
             public void run() {
-                // TODO Auto-generated method stub
-                String dispText = text;
+                int count = 0;
                 if (m_mapPic != null) {
-                    int idx = m_mapPic.size();
-                    dispText = text + "(" + idx + ")";
+                    count = m_mapPic.size();
                 }
-                mPicButton.setText(dispText);
+
+                if (count > 0) {
+                    // 카메라 아이콘은 가운데에 고정하고 우측 상단에 촬영 개수만 표시한다.
+                    mPicCountTextView.setText(String.valueOf(count));
+                    mPicButton.setContentDescription(text + " 이미지 " + count + "개");
+                } else {
+                    // 촬영 이미지가 없으면 카메라 아이콘만 표시한다.
+                    mPicCountTextView.setText("");
+                    mPicButton.setContentDescription(text);
+                }
             }
 
         });
