@@ -37,30 +37,74 @@
 	    android:layout_height="50dip"
 	    android:orientation="horizontal">
         
-	    <Button
-	        android:id="@+id/record_button"
-	        android:layout_width="50dip"
-	        android:layout_height="fill_parent"
-	        android:layout_marginLeft="5dip"
-	        android:layout_marginRight="3dip"
-	        android:layout_marginTop="8dip"
-	        android:layout_marginBottom="7dip"
-            android:minWidth="@dimen/button_min_width"
-	        android:background="@drawable/selector_button_background"
-	        android:text="녹음" 
-	        />
-        <Button
-            android:id="@+id/pic_button"
-            android:layout_width="50dip"
-            android:layout_height="fill_parent"
+        <FrameLayout
+            android:layout_width="35dip"
+            android:layout_height="35dip"
+            android:layout_marginLeft="5dip"
+            android:layout_marginRight="3dip"
+            android:layout_marginTop="8dip"
+            android:layout_marginBottom="7dip">
+
+            <ImageButton
+                android:id="@+id/record_button"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:minWidth="0dip"
+                android:minHeight="0dip"
+                android:padding="0dip"
+                android:background="@drawable/selector_button_background"
+                android:src="@drawable/microphone_button_icon"
+                android:scaleType="center"
+                android:contentDescription="녹음" />
+
+            <TextView
+                android:id="@+id/record_count_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right|top"
+                android:layout_marginTop="1dip"
+                android:layout_marginRight="2dip"
+                android:text=""
+                android:textSize="@dimen/small_small_text_size"
+                android:textColor="@android:color/black"
+                android:clickable="false"
+                android:focusable="false" />
+
+        </FrameLayout>
+        <FrameLayout
+            android:layout_width="35dip"
+            android:layout_height="35dip"
             android:layout_marginLeft="3dip"
             android:layout_marginRight="7dip"
             android:layout_marginTop="8dip"
-            android:layout_marginBottom="7dip"
-            android:minWidth="@dimen/button_min_width"
-            android:background="@drawable/selector_button_background"
-            android:text="촬영" 
-            />
+            android:layout_marginBottom="7dip">
+
+            <ImageButton
+                android:id="@+id/pic_button"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:minWidth="0dip"
+                android:minHeight="0dip"
+                android:padding="0dip"
+                android:background="@drawable/selector_button_background"
+                android:src="@drawable/camera_button_icon"
+                android:scaleType="center"
+                android:contentDescription="촬영" />
+
+            <TextView
+                android:id="@+id/pic_count_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right|top"
+                android:layout_marginTop="1dip"
+                android:layout_marginRight="2dip"
+                android:text=""
+                android:textSize="@dimen/small_small_text_size"
+                android:textColor="@android:color/black"
+                android:clickable="false"
+                android:focusable="false" />
+
+        </FrameLayout>
 	    <RadioGroup 
 	        android:id="@+id/pen_group"
 	        android:layout_width="wrap_content"
