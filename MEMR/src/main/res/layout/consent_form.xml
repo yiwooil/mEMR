@@ -153,18 +153,21 @@
 				android:gravity="center"
 	            android:text="편집" />
 	    </RadioGroup>
-        <Button
+        <ImageButton
             android:id="@+id/undo_sign_button"
-            android:layout_width="70dip"
-            android:layout_height="fill_parent"
+            android:layout_width="35dip"
+            android:layout_height="35dip"
             android:layout_marginLeft="3dip"
             android:layout_marginRight="7dip"
             android:layout_marginTop="8dip"
             android:layout_marginBottom="7dip"
-            android:minWidth="@dimen/button_min_width"
+            android:minWidth="0dip"
+            android:minHeight="0dip"
+            android:padding="0dip"
             android:background="@drawable/selector_button_background"
-            android:text="입력취소" 
-            />
+            android:src="@drawable/undo_button_icon"
+            android:scaleType="center"
+            android:contentDescription="입력취소" />
 	    <Spinner
 	        android:id="@+id/pen_width_spinner"
 	        android:layout_width="wrap_content"
