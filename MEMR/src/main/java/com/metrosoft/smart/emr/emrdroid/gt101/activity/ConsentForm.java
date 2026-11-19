@@ -156,7 +156,7 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
     private RadioButton mRadioPen;
     private RadioButton mRadioEraser;
     private RadioButton mRadioEdit;
-    private Button mUndoSignButton;
+    private ImageButton mUndoSignButton;
     private Spinner mPenWidthSpinner;
     private ArrayList<String> penWidthList = new ArrayList<String>();
     private Spinner mEraserWidthSpinner;
@@ -285,7 +285,8 @@ public class ConsentForm extends MyActivity implements OnCheckedChangeListener, 
             mRadioEdit.setVisibility(View.GONE);
         }
         //
-        mUndoSignButton = (Button) findViewById(R.id.undo_sign_button);
+        mUndoSignButton = (ImageButton) findViewById(R.id.undo_sign_button);
+        mUndoSignButton.setContentDescription("입력취소");
 
         // 펜두께 스피터
         for (int i = 0; i < 10; i++) {
